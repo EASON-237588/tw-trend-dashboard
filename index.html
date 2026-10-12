@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.4.3</title>
+<title>台股趨勢儀表板 v1.4.4</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -135,7 +135,7 @@ td:first-child,th:first-child{text-align:left}
   </section>
   <!-- v1.3.0 三大法人買賣超 → v1.3.1 正 2 外資持股（使用者說不能當參考）→ v1.4.0 外資台指期淨部位（參考用，不影響買賣規則） -->
   <section class="chart" style="flex:.7">
-    <div class="ph"><b>外資台指期</b><span style="color:#ffb020">20 天前±8千</span><span id="instHead" style="margin-left:auto"></span></div>
+    <div class="ph"><b>外資台指期淨空</b><span style="color:#ffb020">20 天前±8千</span><span id="instHead" style="margin-left:auto"></span></div>
     <div class="cw" id="cw3">
       <canvas id="cv3"></canvas>
       <div class="tip" id="tip3" style="left:5px"></div>
@@ -171,7 +171,7 @@ td:first-child,th:first-child{text-align:left}
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
       <li><b>資料來源</b>：全部直接讀證交所——指數日線、盤中每 5 秒指數、正 2 日成交。正 2 盤中價證交所沒開放給網頁讀，用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>。</li>
-      <li><b>外資台指期（第三格）</b>：外資在台指期的淨部位（多單口數－空單口數），淺藍底＝加碼狀態。橘色帶＝20 個交易日前的淨部位上下各 8,000 口：藍線往上穿出帶子（▲）＝外資開始加碼、往下穿出（▼）＝開始減碼，在帶子裡維持原狀態。門檻 8,000 口是回測挑的：報酬跟沒門檻差不多（58.2% 對 58.7%），晚一天成交更穩（52.9% 對 50.4%），近 13 個月交叉從 35 次降到 8 次。也試過淨部位的 5～60 天平均線當訊號線，交叉後晚一天成交就全部輸現行規則，所以用 20 天前這條（晚一天仍贏）。<b>只當參考，不影響買賣規則。</b>回測 2018/07～2026/10：把「濾網多方或外資近 20 天加碼就持有」加進規則，全段每年 58.7%（現行 44.9%），15～25 天都合格；但最慘少掉的比例從 30% 變 43%，2022 空頭虧 −26%（現行 −12%），資料又只有 8 年、沒有 2008 年，所以先觀察。資料來自 FinMind（期交所約下午 3 點後公布，FinMind 晚上更新）。之前試過的三大法人現貨買賣超、正 2 外資持股都沒有參考價值。</li>
+      <li><b>外資台指期（第三格）</b>：外資在台指期的淨部位（多單口數－空單口數）。v1.4.4 起縱軸上下翻轉，畫成「淨空口數」：曲線越高＝外資空單越多，曲線往下＝外資回補（偏多），淺藍底＝加碼狀態。橘色帶＝20 個交易日前的淨部位上下各 8,000 口：藍線往上穿出帶子（▲）＝外資開始加碼、往下穿出（▼）＝開始減碼，在帶子裡維持原狀態。門檻 8,000 口是回測挑的：報酬跟沒門檻差不多（58.2% 對 58.7%），晚一天成交更穩（52.9% 對 50.4%），近 13 個月交叉從 35 次降到 8 次。也試過淨部位的 5～60 天平均線當訊號線，交叉後晚一天成交就全部輸現行規則，所以用 20 天前這條（晚一天仍贏）。<b>只當參考，不影響買賣規則。</b>回測 2018/07～2026/10：把「濾網多方或外資近 20 天加碼就持有」加進規則，全段每年 58.7%（現行 44.9%），15～25 天都合格；但最慘少掉的比例從 30% 變 43%，2022 空頭虧 −26%（現行 −12%），資料又只有 8 年、沒有 2008 年，所以先觀察。資料來自 FinMind（期交所約下午 3 點後公布，FinMind 晚上更新）。之前試過的三大法人現貨買賣超、正 2 外資持股都沒有參考價值。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
   </div>
@@ -179,7 +179,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.4.3";
+const VERSION = "v1.4.4";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -471,7 +471,7 @@ const OIK = 8000;
 const CH = [
   {cv:$("cv"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
   {cv:$("cv2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
-  {cv:$("cv3"), box:"cw3", tip:"tip3", S:() => IB,   line:true,  dec:0, noHold:true},
+  {cv:$("cv3"), box:"cw3", tip:"tip3", S:() => IB,   line:true,  dec:0, noHold:true, flip:true},   // v1.4.4 使用者要求反向：淨空越多越高
 ];
 /* FinMind 台指期三大法人（免費、允許跨網域、2018/06 起）；期交所網頁不開放跨網域，所以沒有當天備援 */
 async function loadInst(){
@@ -528,7 +528,8 @@ function drawOne(C){
     if(C.filt && R.filt[i] != null){ lo = Math.min(lo, R.filt[i]); hi = Math.max(hi, R.filt[i]); } }
   if(!isFinite(lo)){ lo = -1; hi = 1; }
   const pad = (hi - lo) * .06; lo -= pad; hi += pad;
-  const cw = (W - RA) / show, X = i => (i - s + .5) * cw, Y = v => (H - BA) * (1 - (v - lo) / (hi - lo));
+  const cw = (W - RA) / show, X = i => (i - s + .5) * cw,
+    Y = C.flip ? (v => (H - BA) * (v - lo) / (hi - lo)) : (v => (H - BA) * (1 - (v - lo) / (hi - lo)));   // flip：縱軸上下翻轉
   C.view = VIEW = {s, e, cw, X, Y, W, H, RA};
   // 持有期間紅底；v1.4.0 第三格改成外資近 20 天加碼的淺藍底
   ctx.fillStyle = C.noHold ? "rgba(34,199,232,.10)" : "rgba(255,59,59,.07)";
@@ -543,7 +544,8 @@ function drawOne(C){
   const step = niceStep((hi - lo) / 5);
   for(let v = Math.ceil(lo / step) * step; v < hi; v += step){
     const y = Y(v); ctx.strokeStyle = "#1a1f2b"; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RA, y); ctx.stroke();
-    ctx.fillStyle = "#6b7387"; ctx.fillText(C.line && Math.abs(hi - lo) >= 2e4 ? (Math.abs(v) < 1 ? "0" : (v / 1e4).toLocaleString("zh-TW", {maximumFractionDigits:1}) + "萬") : v.toLocaleString("zh-TW", {maximumFractionDigits: step < 1 ? 1 : 0}), W - 3, y);
+    ctx.fillStyle = "#6b7387"; const lv = C.flip ? -v : v;   // 翻轉後刻度顯示淨空口數（正數）
+    ctx.fillText(C.line && Math.abs(hi - lo) >= 2e4 ? (Math.abs(lv) < 1 ? "0" : (lv / 1e4).toLocaleString("zh-TW", {maximumFractionDigits:1}) + "萬") : v.toLocaleString("zh-TW", {maximumFractionDigits: step < 1 ? 1 : 0}), W - 3, y);
   }
   // v1.4.0：外資台指期淨口數，缺資料的日子直接連過去；0 在範圍內就畫一條基準線
   if(C.line){
@@ -570,7 +572,7 @@ function drawOne(C){
       if(pc !== null && up !== pc){
         const x = X(i), z = Math.max(4, Math.min(7, cw * .6)), y = Y(b.v);
         ctx.fillStyle = up ? "#22c7e8" : "#ffb020"; ctx.beginPath();
-        if(up){ ctx.moveTo(x, y + 4); ctx.lineTo(x - z, y + 4 + z*1.5); ctx.lineTo(x + z, y + 4 + z*1.5); }
+        if(C.flip ? !up : up){ ctx.moveTo(x, y + 4); ctx.lineTo(x - z, y + 4 + z*1.5); ctx.lineTo(x + z, y + 4 + z*1.5); }
         else{ ctx.moveTo(x, y - 4); ctx.lineTo(x - z, y - 4 - z*1.5); ctx.lineTo(x + z, y - 4 - z*1.5); }
         ctx.fill();
       }
