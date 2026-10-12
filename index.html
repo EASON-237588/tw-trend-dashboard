@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.2.0</title>
+<title>台股趨勢儀表板 v1.2.2</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -98,12 +98,13 @@ td:first-child,th:first-child{text-align:left}
     <div class="row">
       <span class="badge" id="badge">計算中</span>
       <span class="since" id="since"></span>
-      <div class="px"><b id="idxPx">—</b> <span id="idxChg"></span><small id="idxTime">加權指數</small></div>
+      <!-- v1.2.2：右上角改放 00631L 現價（使用者要求），加權指數移到下方格子 -->
+      <div class="px"><b id="etfPx">—</b> <span id="etfChg"></span><small id="etfTime">00631L</small></div>
     </div>
     <div class="kv">
       <span>指數進場</span><b id="kEntryIdx">—</b>
       <span>正 2 進場</span><b id="kEntryEtf">—</b>
-      <span>正 2 現價</span><b id="kEtfNow">—</b>
+      <span>加權指數</span><b id="kIdx">—</b>
       <span>浮動</span><b id="kFloat">—</b>
     </div>
     <div class="today" id="today" hidden></div>
@@ -162,7 +163,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.2.0";
+const VERSION = "v1.2.2";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -221,10 +222,12 @@ async function loadIndex(prog){
 const ETFM = new Map();   // 'YYYYMM' → {日期: {o,h,l,c}}（v1.2.0 起留開高低收，畫正 2 的 K 線）
 async function etfMonth(ymd){
   const k = ymd.slice(0,4) + ymd.slice(5,7), t = tpeNow(), cur = k === mkey(t.y, t.m);
-  if(ETFM.has(k) && !cur) return ETFM.get(k);
+  // v1.2.1：當月資料 10 分鐘內重複使用（盤中每 10 秒重算，不能每次都重抓證交所）
+  if(ETFM.has(k) && (!cur || Date.now() - ETFM.get(k)._at < 600000)) return ETFM.get(k);
   const j = await twse(`/afterTrading/STOCK_DAY?response=json&stockNo=${ETF}&date=${k}01`, cur ? null : `tst-etf-${k}`);
   const m = {};
   for(const r of (j.data || [])){ const c = num(r[6]); if(c > 0) m[roc(r[0])] = {o:num(r[3]), h:num(r[4]), l:num(r[5]), c}; }
+  Object.defineProperty(m, "_at", {value:Date.now()});   // 不可列舉，Object.assign 不會帶走
   ETFM.set(k, m); return m;
 }
 async function etfClose(ymd){ return (await etfMonth(ymd))[ymd]?.c ?? null; }
@@ -367,10 +370,8 @@ async function compute(){
   $("badge").className = "badge " + (hold ? "long" : "flat");
   $("since").textContent = k > R.warm ? `${md(entry.d)} 起` : "";
   const now = BARS[last], prv = BARS[last-1];
-  $("idxPx").textContent = fmt(now.c);
   const ch = prv ? now.c / prv.c - 1 : null;
-  $("idxChg").innerHTML = ch == null ? "" : `<span class="${ch >= 0 ? "up" : "dn"}" style="font-size:12px">${pct(ch)}</span>`;
-  $("idxTime").textContent = live ? `加權指數 盤中 ${now.at.slice(0,5)}` : `加權指數 ${md(now.d)} 收盤`;
+  $("kIdx").innerHTML = fmt(now.c) + (ch == null ? "" : ` <span class="${ch >= 0 ? "up" : "dn"}">${pct(ch)}</span>`);
   $("kEntryIdx").textContent = hold && k > R.warm ? fmt(entry.c) : "—";
   // 今日暫定：用盤中這根 K 試算
   const td = $("today");
@@ -387,14 +388,16 @@ async function compute(){
   catch(e){ $("wait2").textContent = "正 2 載入失敗：" + (e.message || e); }
   // 正 2 價格（要再抓證交所，放在畫完圖之後）
   try{
-    let etfNow = null, tag = "";
-    if(live){
-      const pc = await etfPrevClose(now.d);
-      if(pc && ch != null){ etfNow = pc * (1 + 2 * ch); tag = "（估算）"; }
-    }else{
-      etfNow = await etfClose(now.d); tag = etfNow ? "（收盤）" : "";
-    }
-    $("kEtfNow").textContent = etfNow ? fmt(etfNow) + tag : "—";
+    // 右上角 00631L：取正 2 日 K 最後一根（盤中那根是用指數估算的），漲跌對前一根（已換算分割）
+    let L = EB ? EB.length - 1 : -1; while(L >= 0 && !EB[L]) L--;   // 證交所正 2 資料比指數晚出時，退回最近一天
+    const eb = L >= 0 ? EB[L] : null;
+    let p = L - 1; while(p >= 0 && !EB[p]) p--;
+    if(eb){
+      const ech = p >= 0 ? eb.c / EB[p].c - 1 : null;
+      $("etfPx").textContent = fmt(eb.c);
+      $("etfChg").innerHTML = ech == null ? "" : `<span class="${ech >= 0 ? "up" : "dn"}" style="font-size:12px">${pct(ech)}</span>`;
+      $("etfTime").textContent = eb.live ? `00631L 盤中估算 ${now.at.slice(0,5)}` : `00631L ${md(eb.d)} 收盤`;
+    }else{ $("etfPx").textContent = "—"; $("etfChg").textContent = ""; $("etfTime").textContent = "00631L 尚無今日收盤"; }
     if(hold && k > R.warm){
       const ep = await etfClose(entry.d);
       $("kEntryEtf").textContent = ep ? fmt(ep) : "—";
@@ -564,7 +567,7 @@ document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e =
   if(e.target === s || e.target.hasAttribute("data-close")) s.hidden = true; }));
 
 /* ============ 啟動與更新 ============
-   盤中每 30 秒抓一次每 5 秒指數（只更新今天這根，歷史不重抓）；收盤後抓一次當月日線就停。 */
+   盤中每 10 秒抓一次每 5 秒指數（v1.2.1 使用者要求，原本 30 秒）（只更新今天這根，歷史不重抓）；收盤後抓一次當月日線就停。 */
 function setDot(cls, t){ const d = $("dot"); d.className = "dot " + cls; d.title = t; }
 async function start(){
   $("ver").textContent = VERSION;
@@ -583,14 +586,17 @@ async function start(){
     setDot("err", String(e.message || e));
     return;
   }
-  let closedDone = false;
+  let closedDone = false, holiday = null;   // holiday：判定休市的日期，當天不再抓
   setInterval(async () => {
     if(document.hidden) return;
     const n = tpeNow();
+    if(holiday === n.ymd) return;
     try{
       if(inSession(n) && !HIST.some(b => b.d === n.ymd)){
-        const t = await loadToday(n.ymd); if(t){ TODAY = t; await compute(); }
-        setDot("live", "盤中更新中"); closedDone = false;
+        const t = await loadToday(n.ymd);
+        if(t){ TODAY = t; await compute(); setDot("live", "盤中更新中"); }
+        else if(n.hm >= 9*60+10){ holiday = n.ymd; setDot("", "今天休市"); }   // v1.2.1：平日國定假日
+        closedDone = false;
       }else if(!closedDone && n.hm > 13*60+40 && !["Sat","Sun"].includes(n.wd)){
         // 收盤後補當月日線，確定今天這根
         const ms = monthList(1)[0];
@@ -599,10 +605,10 @@ async function start(){
         if(rows.some(b => b.d === n.ymd)){
           HIST = HIST.filter(b => b.d.slice(0,7) !== rows[0].d.slice(0,7)).concat(rows); TODAY = null; ETFM.clear();
           await compute(); closedDone = true; setDot("", "已收盤");
-        }
+        }else if(n.hm > 14*60+30) holiday = n.ymd;   // 14:30 還沒有今天的日線 → 休市
       }
     }catch(e){ setDot("warn", "更新失敗：" + (e.message || e)); }
-  }, 30000);
+  }, 10000);
 }
 start();
 </script>
