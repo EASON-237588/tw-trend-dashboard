@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.4.2</title>
+<title>台股趨勢儀表板 v1.4.3</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -135,7 +135,7 @@ td:first-child,th:first-child{text-align:left}
   </section>
   <!-- v1.3.0 三大法人買賣超 → v1.3.1 正 2 外資持股（使用者說不能當參考）→ v1.4.0 外資台指期淨部位（參考用，不影響買賣規則） -->
   <section class="chart" style="flex:.7">
-    <div class="ph"><b>外資台指期</b><span style="color:#ffb020">┄20 天前</span><span id="instHead" style="margin-left:auto"></span></div>
+    <div class="ph"><b>外資台指期</b><span style="color:#ffb020">20 天前±8千</span><span id="instHead" style="margin-left:auto"></span></div>
     <div class="cw" id="cw3">
       <canvas id="cv3"></canvas>
       <div class="tip" id="tip3" style="left:5px"></div>
@@ -171,7 +171,7 @@ td:first-child,th:first-child{text-align:left}
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
       <li><b>資料來源</b>：全部直接讀證交所——指數日線、盤中每 5 秒指數、正 2 日成交。正 2 盤中價證交所沒開放給網頁讀，用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>。</li>
-      <li><b>外資台指期（第三格）</b>：外資在台指期的淨部位（多單口數－空單口數），淺藍底＝近 20 個交易日淨部位在增加。橘色虛線＝20 個交易日前的淨部位：藍線往上穿過它（▲）＝外資開始加碼、往下穿過（▼）＝開始減碼。也試過淨部位的 5～60 天平均線當訊號線，交叉後晚一天成交就全部輸現行規則，所以用 20 天前這條（晚一天仍贏）。<b>只當參考，不影響買賣規則。</b>回測 2018/07～2026/10：把「濾網多方或外資近 20 天加碼就持有」加進規則，全段每年 58.7%（現行 44.9%），15～25 天都合格；但最慘少掉的比例從 30% 變 43%，2022 空頭虧 −26%（現行 −12%），資料又只有 8 年、沒有 2008 年，所以先觀察。資料來自 FinMind（期交所約下午 3 點後公布，FinMind 晚上更新）。之前試過的三大法人現貨買賣超、正 2 外資持股都沒有參考價值。</li>
+      <li><b>外資台指期（第三格）</b>：外資在台指期的淨部位（多單口數－空單口數），淺藍底＝加碼狀態。橘色帶＝20 個交易日前的淨部位上下各 8,000 口：藍線往上穿出帶子（▲）＝外資開始加碼、往下穿出（▼）＝開始減碼，在帶子裡維持原狀態。門檻 8,000 口是回測挑的：報酬跟沒門檻差不多（58.2% 對 58.7%），晚一天成交更穩（52.9% 對 50.4%），近 13 個月交叉從 35 次降到 8 次。也試過淨部位的 5～60 天平均線當訊號線，交叉後晚一天成交就全部輸現行規則，所以用 20 天前這條（晚一天仍贏）。<b>只當參考，不影響買賣規則。</b>回測 2018/07～2026/10：把「濾網多方或外資近 20 天加碼就持有」加進規則，全段每年 58.7%（現行 44.9%），15～25 天都合格；但最慘少掉的比例從 30% 變 43%，2022 空頭虧 −26%（現行 −12%），資料又只有 8 年、沒有 2008 年，所以先觀察。資料來自 FinMind（期交所約下午 3 點後公布，FinMind 晚上更新）。之前試過的三大法人現貨買賣超、正 2 外資持股都沒有參考價值。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
   </div>
@@ -179,7 +179,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.4.2";
+const VERSION = "v1.4.3";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -464,6 +464,10 @@ let EB = null;   // 正 2 日 K，跟 BARS 對齊
 /* v1.4.0：外資台指期淨部位。OI：日期 → {l 多單口數, s 空單口數}；IB 跟 BARS 對齊 {v 淨口數, c 近 20 交易日變化}。 */
 let OI = {}, IB = null, SPL = [];   // SPL：etfBars 偵測到的分割 {d 分割日, n 倍數（整數）}
 const OIN = 20;   // 回測最好的天數（15～25 天都合格）
+/* v1.4.3：門檻。淨部位比 20 天前多超過 OIK 口才轉「加碼」、少超過 OIK 口才轉「減碼」，帶內維持原狀態。
+   回測 2018/07～2026/10：門檻 8,000 口全段 58.2%（無門檻 58.7%）、晚一天 52.9%（50.4%），
+   近 13 個月交叉 35 次→8 次；15、25 天配 8,000 口也都合格。 */
+const OIK = 8000;
 const CH = [
   {cv:$("cv"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
   {cv:$("cv2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
@@ -481,15 +485,17 @@ async function loadInst(){
 function buildIB(){
   if(!R) return;
   const v = BARS.map(b => OI[b.d] ? OI[b.d].l - OI[b.d].s : null);
+  let st = 0;   // 加碼狀態要從頭算（帶內沿用前一天），所以暖機段也要跑，只是不畫
   IB = BARS.map((b, i) => {
-    if(i < R.warm || v[i] == null) return null;
+    if(v[i] == null) return null;
     const p = i >= OIN ? v[i-OIN] : null, c = p != null ? v[i] - p : null;
-    return {d:b.d, v:v[i], l:OI[b.d].l, s:OI[b.d].s, c, p};   // p：20 個交易日前的淨部位（訊號線）
+    if(c != null){ if(c > OIK) st = 1; else if(c < -OIK) st = 0; }
+    return i < R.warm ? null : {d:b.d, v:v[i], l:OI[b.d].l, s:OI[b.d].s, c, p, st};   // p：20 個交易日前的淨部位
   });
   let q = IB.length - 1; while(q >= 0 && !IB[q]) q--;
   const z = q >= 0 ? IB[q] : null;
   $("instHead").innerHTML = z ? `${z.v < 0 ? "淨空" : "淨多"} ${Math.abs(z.v).toLocaleString("zh-TW")}・` +
-    `<span style="color:${z.c > 0 ? "#22c7e8" : "#ffb020"}">${z.c > 0 ? "加碼" : "減碼"} ${sg(z.c ?? 0)}</span>・${md(z.d)}` : "";
+    `<span style="color:${z.st ? "#22c7e8" : "#ffb020"}">${z.st ? "加碼" : "減碼"}</span> ${sg(z.c ?? 0)}・${md(z.d)}` : "";
 }
 const sg = v => (v >= 0 ? "+" : "") + Math.round(v).toLocaleString("zh-TW");
 let instTry = 0;
@@ -517,7 +523,7 @@ function drawOne(C){
   const e = BARS.length - off, s = e - show;
   let lo = Infinity, hi = -Infinity;
   for(let i = s; i < e; i++){ if(!D[i]) continue;
-    if(C.line){ lo = Math.min(lo, D[i].v, D[i].p ?? Infinity); hi = Math.max(hi, D[i].v, D[i].p ?? -Infinity); continue; }
+    if(C.line){ lo = Math.min(lo, D[i].v, D[i].p != null ? D[i].p - OIK : Infinity); hi = Math.max(hi, D[i].v, D[i].p != null ? D[i].p + OIK : -Infinity); continue; }
     lo = Math.min(lo, D[i].l); hi = Math.max(hi, D[i].h);
     if(C.filt && R.filt[i] != null){ lo = Math.min(lo, R.filt[i]); hi = Math.max(hi, R.filt[i]); } }
   if(!isFinite(lo)){ lo = -1; hi = 1; }
@@ -526,7 +532,7 @@ function drawOne(C){
   C.view = VIEW = {s, e, cw, X, Y, W, H, RA};
   // 持有期間紅底；v1.4.0 第三格改成外資近 20 天加碼的淺藍底
   ctx.fillStyle = C.noHold ? "rgba(34,199,232,.10)" : "rgba(255,59,59,.07)";
-  const on = C.noHold ? (i => !!(D[i] && D[i].c > 0)) : (i => R.pos[i] === 1);
+  const on = C.noHold ? (i => !!(D[i] && D[i].st)) : (i => R.pos[i] === 1);
   for(let i = s; i < e; i++){   // 連續的段一次畫完，逐根畫會有縫
     if(!on(i)) continue;
     let j = i; while(j + 1 < e && on(j+1)) j++;
@@ -547,12 +553,20 @@ function drawOne(C){
       for(let i = s; i < e; i++){ const b = D[i]; if(!b || b[k] == null) continue;
         if(st) ctx.lineTo(X(i), Y(b[k])); else { ctx.moveTo(X(i), Y(b[k])); st = true; } }
       ctx.stroke(); ctx.setLineDash([]); };
-    path("p", "#ffb020", 1.3, [4, 3]);
+    // v1.4.3：門檻帶＝20 天前淨部位 ±8,000 口（橘色淡底），中線虛線
+    const band = []; for(let i = s; i < e; i++) if(D[i] && D[i].p != null) band.push(i);
+    if(band.length > 1){   // 上緣往右、下緣往左，圍成一塊多邊形，逐根畫會有直紋
+      ctx.fillStyle = "rgba(255,176,32,.16)"; ctx.beginPath();
+      band.forEach((i, k) => k ? ctx.lineTo(X(i), Y(D[i].p + OIK)) : ctx.moveTo(X(i), Y(D[i].p + OIK)));
+      for(let k = band.length - 1; k >= 0; k--) ctx.lineTo(X(band[k]), Y(D[band[k]].p - OIK));
+      ctx.closePath(); ctx.fill();
+    }
+    path("p", "rgba(255,176,32,.7)", 1, [4, 3]);
     path("v", "#22c7e8", 1.8, []);
     ctx.lineWidth = 1;
     let pc = null;
     for(let i = s; i < e; i++){ const b = D[i]; if(!b || b.c == null) continue;
-      const up = b.c > 0;
+      const up = !!b.st;
       if(pc !== null && up !== pc){
         const x = X(i), z = Math.max(4, Math.min(7, cw * .6)), y = Y(b.v);
         ctx.fillStyle = up ? "#22c7e8" : "#ffb020"; ctx.beginPath();
@@ -613,7 +627,7 @@ function tipAt(px){
     const D = C.S(), b = ok && D ? D[i] : null;
     if(!b){ $(C.tip).textContent = ""; continue; }
     if(C.line){ $(C.tip).textContent = `${b.d.replace(/-/g,"/")} 外資 多 ${b.l.toLocaleString("zh-TW")} 空 ${b.s.toLocaleString("zh-TW")} 淨 ${sg(b.v)} 口` +
-      (b.c != null ? `  ${OIN} 天前 ${sg(b.p)}（${b.c > 0 ? "加碼" : "減碼"} ${sg(b.c)}）` : ""); continue; }
+      (b.c != null ? `  ${OIN} 天前 ${sg(b.p)}（差 ${sg(b.c)}・${b.st ? "加碼" : "減碼"}）` : ""); continue; }
     let p = i - 1; while(p >= 0 && !D[p]) p--;
     const ch = p >= 0 ? b.c / D[p].c - 1 : 0, f = v => fmt(v, C.dec);
     $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (C.filt ? " 盤中" : " 盤中估算") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
