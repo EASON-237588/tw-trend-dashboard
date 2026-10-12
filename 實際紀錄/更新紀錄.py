@@ -10,8 +10,8 @@
 3. 印出總表與逐筆明細，重畫 績效曲線.png（儀表板「曲線圖」按鈕讀這張）
 
 報酬計算：
-- 正 2 在 2026/03/24→03/31 做過約 1 拆 23。逐日串收盤價，單日變動超過一倍就當成分割，
-  那一天改用「加權指數同期漲跌 ×2」接起來。
+- 正 2 在 2026/03/24→03/31 做過 1 拆 22（發行股數 1.67 億→36.6 億）。逐日串收盤價，
+  停牌日價值不動；恢復交易那天跟停牌前最後一個收盤比，變動超過一倍就當成分割、乘回整數倍數。
 - 比較用的「0050 抱著」把除息加回去（證交所除權息資料的 除息前收盤÷參考價）。
 - 未扣手續費與證交稅（一買一賣約 0.18%）。
 只用 Python 內建模組；畫圖用 matplotlib。
@@ -152,14 +152,18 @@ def append_rows(rows):
         w.writerows(rows)
 
 # ============ 報酬 ============
-def daily_ret(px, idx, div, d0, d1, lev):
-    if d0 not in px or d1 not in px: return 1 + lev * (idx[d1] / idx[d0] - 1)
-    r = px[d1] / px[d0] * div.get(d1, 1.0)
-    return r if 0.5 < r < 2 else 1 + lev * (idx[d1] / idx[d0] - 1)   # 分割
-
 def chain(px, idx, div, days, lev):
-    g = [1.0]
-    for i in range(1, len(days)): g.append(g[-1] * daily_ret(px, idx, div, days[i-1], days[i], lev))
+    """逐日累乘報酬。停牌日（沒有收盤價）價值不動；分割日乘回整數倍數。idx、lev 用來判斷分割倍數"""
+    g = [1.0]; lastp = px.get(days[0]); lastd = days[0]
+    for d in days[1:]:
+        if d in px and lastp is not None:
+            r = px[d] / lastp * div.get(d, 1.0)
+            if not 0.5 < r < 2:   # 分割：先扣掉停牌期間指數漲跌×槓桿再取整數（直接取會得到 23）
+                e = r / (1 + lev * (idx[d] / idx[lastd] - 1))
+                r *= round(1 / e) if e < 1 else 1 / round(e)
+            g.append(g[-1] * r)
+        else: g.append(g[-1])
+        if d in px: lastp, lastd = px[d], d
     return g
 
 # ============ 曲線 ============
