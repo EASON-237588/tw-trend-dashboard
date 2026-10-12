@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.0.2</title>
+<title>台股趨勢儀表板 v1.0.3</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -122,7 +122,7 @@ td:first-child,th:first-child{text-align:left}
 <div class="sheet" id="logSheet" hidden>
   <div class="in">
     <div class="top">訊號紀錄（依載入的資料重算）<button class="hbtn" data-close>關閉</button></div>
-    <div style="font-size:11px;margin-bottom:6px">每次都是收盤價成交・正 2 用證交所收盤價・未扣手續費與證交稅</div>
+    <div style="font-size:11px;margin-bottom:6px">每次都是收盤價成交・正 2 用證交所收盤價・報酬已處理 2026/03 的 1 拆 23 分割・未扣手續費與證交稅</div>
     <div id="logBody">尚未計算</div>
   </div>
 </div>
@@ -143,7 +143,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.0.2";
+const VERSION = "v1.0.3";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -208,6 +208,24 @@ async function etfMonth(ymd){
   ETFM.set(k, m); return m;
 }
 async function etfClose(ymd){ return (await etfMonth(ymd))[ymd] ?? null; }
+/* v1.0.3：正 2 在 2026/03/24→03/31 做過約 1 拆 23，收盤價直接相除會錯。
+   從 a 到 b 逐日串收盤價，單日變動超過一倍（真實行情一天最多約 ±20%）就當成分割，
+   那一段改用「加權指數同期漲跌 ×2」接起來。回傳 a 收盤到 b 收盤的報酬。 */
+async function etfRet(a, b){
+  const days = {}, d = new Date(a.slice(0,7) + "-01T00:00:00Z"), end = b.slice(0,7);
+  while(d.toISOString().slice(0,7) <= end){ Object.assign(days, await etfMonth(d.toISOString().slice(0,10))); d.setUTCMonth(d.getUTCMonth() + 1); }
+  const ks = Object.keys(days).filter(k => k >= a && k <= b).sort();
+  if(!ks.length || ks[0] !== a || ks[ks.length-1] !== b) return null;
+  const idx = {}; for(const x of BARS) idx[x.d] = x.c;
+  let g = 1;
+  for(let i = 1; i < ks.length; i++){
+    const r = days[ks[i]] / days[ks[i-1]];
+    if(r > .5 && r < 2) g *= r;
+    else if(idx[ks[i]] && idx[ks[i-1]]) g *= 1 + 2 * (idx[ks[i]] / idx[ks[i-1]] - 1);
+    else return null;
+  }
+  return g - 1;
+}
 async function etfPrevClose(ymd){   // ymd 之前最近一個交易日的收盤
   let m = await etfMonth(ymd), ks = Object.keys(m).filter(d => d < ymd).sort();
   if(!ks.length){ const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(0); m = await etfMonth(d.toISOString().slice(0,10)); ks = Object.keys(m).filter(d => d < ymd).sort(); }
@@ -277,12 +295,15 @@ function calcRF(B, P){
     pos[i] = cur;
   }
   const warm = 6 * P.per;
+  // v1.0.3：第一次翻轉之前部位是 0（不明）。第一次是轉空手 → 之前一定是持有，反之亦然；往前補上。
+  // 跟 29 年完整資料回測的結果一致（例：2026/03/09 轉空手，之前一路持有）。
+  if(sigs.length) for(let i = 0; i < sigs[0].i; i++) pos[i] = -sigs[0].d;
   return {pos, filt, fcol, sigs: sigs.filter(s => s.i >= warm), warm};
 }
 
 /* ============ 狀態 ============ */
 let HIST = [], TODAY = null, BARS = [], R = null, TRADES = [];
-const ZOOM = {span:120, off:0};
+const ZOOM = {span:1e9, off:0};   // v1.0.3 使用者要求預設縮到最大、顯示全部
 
 async function compute(){
   BARS = HIST.slice();
@@ -327,7 +348,10 @@ async function compute(){
     if(hold && k > R.warm){
       const ep = await etfClose(entry.d);
       $("kEntryEtf").textContent = ep ? fmt(ep) : "—";
-      const fl = ep && etfNow ? etfNow / ep - 1 : null;
+      // 浮動用 etfRet 跨過分割；盤中再乘上今天的估算漲跌
+      let fl = null;
+      if(live){ const r0 = await etfRet(entry.d, BARS[last-1].d); if(r0 != null && ch != null) fl = (1 + r0) * (1 + 2 * ch) - 1; }
+      else fl = await etfRet(entry.d, now.d);
       $("kFloat").innerHTML = fl == null ? "—" : `<span class="${fl >= 0 ? "up" : "dn"}">${pct(fl)}</span>`;
     }else{ $("kEntryEtf").textContent = "—"; $("kFloat").textContent = "—"; }
   }catch(e){ console.warn("正 2 價格", e); }
@@ -348,7 +372,7 @@ async function buildLog(){
   const html = [];
   for(const [a, b] of rows.reverse()){
     const ea = await etfClose(BARS[a].d), eb = b != null ? await etfClose(BARS[b].d) : null;
-    const r = ea && eb ? eb / ea - 1 : null;
+    const r = b != null ? await etfRet(BARS[a].d, BARS[b].d) : null;
     html.push(`<tr><td>${md(BARS[a].d)}${a === R.warm && R.pos[a-1] === 1 ? "＊" : ""}</td><td>${fmt(BARS[a].c,0)}</td><td>${fmt(ea)}</td>` +
       (b != null ? `<td>${md(BARS[b].d)}</td><td>${fmt(eb)}</td><td class="${r >= 0 ? "up" : "dn"}">${pct(r)}</td>`
                  : `<td colspan="3" style="text-align:center">持有中</td>`) + `</tr>`);
@@ -457,7 +481,7 @@ const up = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch = null; drag
 cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
 cv.addEventListener("pointerleave", () => { if(!drag) $("tip").textContent = ""; });
 cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
-cv.addEventListener("dblclick", () => { ZOOM.span = 120; ZOOM.off = 0; draw(); });
+cv.addEventListener("dblclick", () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); });
 $("zIn").onclick = () => { ZOOM.span = Math.round(ZOOM.span / 1.4); draw(); };
 $("zOut").onclick = () => { ZOOM.span = Math.round(ZOOM.span * 1.4); draw(); };
 $("zAll").onclick = () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); };
