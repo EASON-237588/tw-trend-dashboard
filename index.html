@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.4.5</title>
+<title>台股趨勢儀表板 v1.5.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -61,6 +61,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6p
 .ph b{font-size:13px;color:var(--text)}
 .cw{position:relative;flex:1;min-height:0;border-radius:5px;overflow:hidden;background:#0e121b}
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+/* v1.5.0：十字游標畫在疊加的透明畫布，移動時只重畫這層 */
+canvas.ov{position:absolute;inset:0;pointer-events:none}
 .zoom{position:absolute;left:5px;top:5px;display:flex;gap:3px}
 .zoom button{width:24px;height:22px;border-radius:5px;border:1px solid var(--line);background:rgba(19,23,34,.85);
   color:var(--text);font-size:13px;cursor:pointer;padding:0}
@@ -118,7 +120,7 @@ td:first-child,th:first-child{text-align:left}
   <section class="chart">
     <div class="ph"><b>加權指數 日線</b><span>Range Filter 取樣 15・倍數 4</span><span style="margin-left:auto">紅底＝持有正 2</span></div>
     <div class="cw" id="cw">
-      <canvas id="cv"></canvas>
+      <canvas id="cv"></canvas><canvas class="ov" id="ov"></canvas>
       <div class="zoom"><button id="zIn">＋</button><button id="zOut">－</button><button id="zAll">⤢</button></div>
       <div class="tip" id="tip"></div>
       <div class="wait" id="wait">載入中…</div>
@@ -128,7 +130,7 @@ td:first-child,th:first-child{text-align:left}
   <section class="chart">
     <div class="ph"><b>00631L 正 2 日線</b><span>分割前已換算</span><span style="margin-left:auto">▲買進 ▼賣出</span></div>
     <div class="cw" id="cw2">
-      <canvas id="cv2"></canvas>
+      <canvas id="cv2"></canvas><canvas class="ov" id="ov2"></canvas>
       <div class="tip" id="tip2" style="left:5px"></div>
       <div class="wait" id="wait2">載入正 2…</div>
     </div>
@@ -137,7 +139,7 @@ td:first-child,th:first-child{text-align:left}
   <section class="chart" style="flex:.7">
     <div class="ph"><b>外資台指期淨空</b><span style="color:#ffb020">20 天前±8千</span><span id="instHead" style="margin-left:auto"></span></div>
     <div class="cw" id="cw3">
-      <canvas id="cv3"></canvas>
+      <canvas id="cv3"></canvas><canvas class="ov" id="ov3"></canvas>
       <div class="tip" id="tip3" style="left:5px"></div>
       <div class="wait" id="wait3">載入外資台指期…</div>
     </div>
@@ -179,7 +181,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.4.5";
+const VERSION = "v1.5.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -469,9 +471,9 @@ const OIN = 20;   // 回測最好的天數（15～25 天都合格）
    近 13 個月交叉 35 次→8 次；15、25 天配 8,000 口也都合格。 */
 const OIK = 8000;
 const CH = [
-  {cv:$("cv"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
-  {cv:$("cv2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
-  {cv:$("cv3"), box:"cw3", tip:"tip3", S:() => IB,   line:true,  dec:0, noHold:true, flip:true},   // v1.4.4 使用者要求反向：淨空越多越高
+  {cv:$("cv"),  ov:$("ov"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
+  {cv:$("cv2"), ov:$("ov2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
+  {cv:$("cv3"), ov:$("ov3"), box:"cw3", tip:"tip3", S:() => IB,   line:true,  dec:0, noHold:true, flip:true},   // v1.4.4 使用者要求反向：淨空越多越高
 ];
 /* FinMind 台指期三大法人（免費、允許跨網域、2018/06 起）；期交所網頁不開放跨網域，所以沒有當天備援 */
 async function loadInst(){
@@ -506,7 +508,7 @@ async function refreshInst(){
 }
 CH.forEach(c => c.ctx = c.cv.getContext("2d"));
 let VIEW = null;
-function draw(){ for(const c of CH) drawOne(c); }
+function draw(){ for(const c of CH) drawOne(c); drawCross(); }
 function drawOne(C){
   const cv = C.cv, ctx = C.ctx, D = C.S();
   const box = $(C.box).getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -530,7 +532,7 @@ function drawOne(C){
   const pad = (hi - lo) * .06; lo -= pad; hi += pad;
   const cw = (W - RA) / show, X = i => (i - s + .5) * cw,
     Y = C.flip ? (v => (H - BA) * (v - lo) / (hi - lo)) : (v => (H - BA) * (1 - (v - lo) / (hi - lo)));   // flip：縱軸上下翻轉
-  C.view = VIEW = {s, e, cw, X, Y, W, H, RA};
+  C.view = VIEW = {s, e, cw, X, Y, W, H, RA, BA, lo, hi};
   // 持有期間紅底；v1.4.0 第三格改成外資近 20 天加碼的淺藍底
   ctx.fillStyle = C.noHold ? "rgba(34,199,232,.10)" : "rgba(255,59,59,.07)";
   const on = C.noHold ? (i => !!(D[i] && D[i].st)) : (i => R.pos[i] === 1);
@@ -621,7 +623,40 @@ function drawOne(C){
 }
 function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
 
-// 提示框、拖曳、滾輪、雙指（兩張圖都能操作，一起動；提示框兩張同時顯示同一天）
+/* v1.5.0：十字游標，三格同步。CROSS＝{i 第幾根, k 哪一張圖, y 游標高度}；
+   三張都畫垂直虛線，游標所在那張再畫水平虛線，右軸標數值、底部標日期。 */
+let CROSS = null;
+function drawCross(){
+  const dpr = window.devicePixelRatio || 1;
+  CH.forEach((C, k) => {
+    const ov = C.ov, V = C.view, g = ov.getContext("2d");
+    if(ov.width !== C.cv.width || ov.height !== C.cv.height){ ov.width = C.cv.width; ov.height = C.cv.height; }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, ov.width, ov.height);
+    if(!CROSS || !V || CROSS.i < V.s || CROSS.i >= V.e) return;
+    const x = Math.round(V.X(CROSS.i)) + .5, ph = V.H - V.BA;
+    g.strokeStyle = "rgba(214,219,230,.55)"; g.lineWidth = 1; g.setLineDash([3, 3]);
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ph); g.stroke();
+    if(k !== CROSS.k) return;
+    const y = Math.max(0, Math.min(ph, CROSS.y));
+    g.beginPath(); g.moveTo(0, y + .5); g.lineTo(V.W - V.RA, y + .5); g.stroke(); g.setLineDash([]);
+    // 右軸數值（第三格縱軸翻轉，顯示淨空口數）
+    const f = y / ph, v = C.flip ? V.lo + f * (V.hi - V.lo) : V.hi - f * (V.hi - V.lo);
+    const txt = C.line ? Math.round(C.flip ? -v : v).toLocaleString("zh-TW") : fmt(v, C.dec);
+    g.font = "10px sans-serif"; g.textBaseline = "middle"; g.textAlign = "right";
+    g.fillStyle = "#d6dbe6"; g.fillRect(V.W - V.RA, y - 8, V.RA, 16);
+    g.fillStyle = "#0b0e14"; g.fillText(txt, V.W - 3, y);
+    // 底部日期
+    const d = BARS[CROSS.i].d.replace(/-/g, "/"), w = g.measureText(d).width + 8, lx = Math.max(0, Math.min(V.W - V.RA - w, x - w/2));
+    g.fillStyle = "#d6dbe6"; g.fillRect(lx, ph, w, V.BA); g.fillStyle = "#0b0e14"; g.textAlign = "center"; g.fillText(d, lx + w/2, ph + V.BA/2);
+  });
+}
+function setCross(k, px, py){
+  const V = CH[0].view; if(!V) return;
+  const i = V.s + Math.floor(px / V.cw);
+  CROSS = i >= V.s && i < V.e ? {i, k, y:py} : null; drawCross();
+}
+
+// 提示框、拖曳、滾輪、雙指（三張圖都能操作，一起動；提示框同時顯示同一天）
 let drag = null;
 function tipAt(px){
   const V = CH[0].view; if(!V){ return; }
@@ -637,24 +672,25 @@ function tipAt(px){
       (C.filt ? `  濾網 ${fmt(R.filt[i],0)}` : "");
   }
 }
-const clearTip = () => { if(!drag) for(const C of CH) $(C.tip).textContent = ""; };
+const clearTip = e => { if(drag || e.pointerType !== "mouse") return;   // 手機放開後十字線留著，滑鼠移出才清
+  for(const C of CH) $(C.tip).textContent = ""; CROSS = null; drawCross(); };
 const ptrs = new Map(); let pinch = null;
-for(const {cv} of CH){
+CH.forEach(({cv}, k) => {
   cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e.offsetX);
     if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = {d:Math.abs(a - b), span:ZOOM.span}; drag = null; }
-    else drag = {x:e.offsetX, off:ZOOM.off}; tipAt(e.offsetX); });
+    else drag = {x:e.offsetX, off:ZOOM.off}; tipAt(e.offsetX); setCross(k, e.offsetX, e.offsetY); });
   cv.addEventListener("pointermove", e => {
     if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
     if(pinch && ptrs.size === 2){ const [a, b] = [...ptrs.values()]; const d = Math.abs(a - b);
       if(d > 10){ ZOOM.span = Math.round(pinch.span * pinch.d / d); draw(); } return; }
     if(drag && VIEW){ ZOOM.off = Math.round(drag.off + (e.offsetX - drag.x) / VIEW.cw); draw(); }
-    tipAt(e.offsetX); });
+    tipAt(e.offsetX); setCross(k, e.offsetX, e.offsetY); });
   const up = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch = null; drag = null; };
   cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
   cv.addEventListener("pointerleave", clearTip);
   cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
   cv.addEventListener("dblclick", () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); });
-}
+});
 $("zIn").onclick = () => { ZOOM.span = Math.round(ZOOM.span / 1.4); draw(); };
 $("zOut").onclick = () => { ZOOM.span = Math.round(ZOOM.span * 1.4); draw(); };
 $("zAll").onclick = () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); };
