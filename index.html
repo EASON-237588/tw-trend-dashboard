@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.7.1</title>
+<title>台股趨勢儀表板 v1.7.2</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -196,7 +196,7 @@ td:first-child,th:first-child{text-align:left}
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
       <li><b>資料來源</b>：圖表直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交。盤中正 2、台積電、聯發科的即時價，證交所不開放網頁直接讀，透過自己的 Cloudflare 轉接站代抓；轉接站連不上時，正 2 改用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>，個股只顯示最近收盤。12 年績效另用 FinMind。</li>
       <li><b>畫面（v1.7.1）</b>：四格依序是正 2、加權指數、台積電、聯發科。商品名稱前的方塊是價格（盤中即時，持有紅底、空手綠底）。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考）。右上角「持有／空手 MM/DD 起」是目前狀態，看收盤確定的那根。</li>
-      <li><b>12年績效</b>：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「策略只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。策略贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
+      <li><b>12年績效</b>：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。只做多贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
       <li><b>盤中翻轉警告</b>：盤中照目前指數試算，若收盤會翻轉，畫面中央跳出警告（同一天同方向按「知道了」後不重跳）。只有網頁開著才會跳，沒有聲音。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
@@ -205,7 +205,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.7.1";
+const VERSION = "v1.7.2";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -381,7 +381,7 @@ function posHead(id, pos, L, D){
   const st = STATS[id];
   const pc = v => (v >= 0 ? "+" : "") + Math.round(v * 100).toLocaleString("zh-TW") + "%", pf = $(id.replace("sh", "pf"));
   pf.title = st ? `${st.from.replace(/-/g,"/")}～${st.to.replace(/-/g,"/")}，只做多、收盤成交、未扣成本、未含配息` : "";
-  pf.innerHTML = st ? `${yrs(st.from, st.to)}年 策略只做多 <b class="pv" style="color:${st.s >= st.b ? "#ff3b3b" : "var(--text)"}">${pc(st.s)}</b>・抱著 <b class="pv">${pc(st.b)}</b>` : "";
+  pf.innerHTML = st ? `${yrs(st.from, st.to)}年 只做多 <b class="pv" style="color:${st.s >= st.b ? "#ff3b3b" : "var(--text)"}">${pc(st.s)}</b>・抱著 <b class="pv">${pc(st.b)}</b>` : "";
   $(id).innerHTML = `<span style="color:${h ? "#ff3b3b" : "#2ecc71"};font-weight:700">${h ? "持有" : "空手"}</span>` +
     (a > R.warm ? ` <span style="color:var(--warn)">${md(BARS[a].d)} 起</span>` : "");
 }
@@ -709,10 +709,8 @@ function tipAt(px){
   for(const C of CH){
     const D = C.S(), b = ok && D ? D[i] : null;
     if(!b){ $(C.tip).textContent = ""; continue; }
-    let p = i - 1; while(p >= 0 && !D[p]) p--;
-    const ch = p >= 0 ? b.c / D[p].c - 1 : 0, f = v => fmt(v, C.dec);
-    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (b.est ? " 盤中估算" : " 盤中") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
-      "";
+    // v1.7.2 使用者要求：只留日期與收盤
+    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (b.est ? " 盤中估算" : " 盤中") : ""}  收 ${fmt(b.c, C.stk && b.c >= 1000 ? 0 : C.dec)}`;   // 千元以上個股一跳 5 元，不顯示小數
   }
 }
 const clearTip = e => { if(drag || e.pointerType !== "mouse") return;   // 手機放開後十字線留著，滑鼠移出才清
