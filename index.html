@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.7.2</title>
+<title>台股趨勢儀表板 v1.7.3</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -72,10 +72,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6p
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 /* v1.5.0：十字游標畫在疊加的透明畫布，移動時只重畫這層 */
 canvas.ov{position:absolute;inset:0;pointer-events:none}
-.zoom{position:absolute;left:5px;top:5px;display:flex;gap:3px}
-.zoom button{width:24px;height:22px;border-radius:5px;border:1px solid var(--line);background:rgba(19,23,34,.85);
-  color:var(--text);font-size:13px;cursor:pointer;padding:0}
-.tip{position:absolute;left:88px;top:5px;font-size:11px;color:var(--text);background:rgba(11,14,20,.85);
+.tip{position:absolute;left:5px;top:5px;font-size:11px;color:var(--text);background:rgba(11,14,20,.85);
   border:1px solid var(--line);border-radius:5px;padding:2px 6px;pointer-events:none;white-space:nowrap}
 .tip:empty{display:none}
 .wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
@@ -126,7 +123,6 @@ td:first-child,th:first-child{text-align:left}
     <div class="ph"><span class="pxb" id="px1"></span><b>00631L 正 2</b><span class="pf" id="pf1"></span><span class="st" id="sh1"></span></div>
     <div class="cw" id="cw2">
       <canvas id="cv2"></canvas><canvas class="ov" id="ov2"></canvas>
-      <div class="zoom"><button id="zIn">＋</button><button id="zOut">－</button><button id="zAll">⤢</button></div>
       <div class="tip" id="tip2"></div>
       <div class="wait" id="wait2">載入正 2…</div>
     </div>
@@ -205,7 +201,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.7.2";
+const VERSION = "v1.7.3";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -732,9 +728,7 @@ CH.forEach(({cv}, k) => {
   cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
   cv.addEventListener("dblclick", () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); });
 });
-$("zIn").onclick = () => { ZOOM.span = Math.round(ZOOM.span / 1.4); draw(); };
-$("zOut").onclick = () => { ZOOM.span = Math.round(ZOOM.span * 1.4); draw(); };
-$("zAll").onclick = () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); };
+// v1.7.3 使用者要求拿掉縮放按鈕；滾輪、雙指、雙擊回全部照舊
 window.addEventListener("resize", () => draw());
 
 // 彈出面板
