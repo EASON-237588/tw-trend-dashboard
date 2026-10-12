@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>台股趨勢儀表板 v1.0.0</title>
+<meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
+<meta name="theme-color" content="#0b0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="台股趨勢">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e14'/%3E%3Cpath d='M8 46 L22 34 L32 40 L46 20 L56 26' fill='none' stroke='%23ff3b3b' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0b0e14; --panel:#131722; --line:#232838; --text:#d6dbe6; --mute:#8b93a7; --dim:#5d6578;
+  --long:#ff3b3b; --short:#2ecc71; --flat:#7a8494; --tag:#22c7e8; --warn:#ffb020;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+/* 照指數趨勢儀表板：手機直式單頁、釘滿螢幕不捲動，桌機同樣窄版置中 */
+.app{position:fixed;top:0;bottom:0;left:0;right:0;max-width:560px;margin:0 auto;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) / 3)}
+header{flex:none;display:flex;align-items:center;gap:6px;padding:7px 10px 5px}
+h1{margin:0;font-size:16px;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+h1 small{font-size:11px;color:#ff2d55;font-weight:400;margin-left:5px}
+.hbtn{flex:none;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:3px 9px;cursor:pointer}
+#logBtn{margin-left:auto}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);display:inline-block;flex:none;margin-left:4px}
+.dot.live{background:#2ecc71;animation:blink 1.2s ease-in-out infinite}
+.dot.warn{background:var(--warn)}.dot.err{background:var(--long)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+@media (max-width:400px){ header{gap:4px;padding-left:6px;padding-right:6px} .hbtn{padding:3px 6px} }
+.loadbar{position:absolute;left:10px;right:10px;top:38px;z-index:5;height:22px;border-radius:6px;background:var(--panel);
+  border:1px solid var(--line);overflow:hidden;font-size:11px}
+.loadbar[hidden]{display:none}
+.loadbar .fill{position:absolute;inset:0 auto 0 0;width:0;background:#1d3557;transition:width .3s}
+.loadbar span{position:relative;line-height:20px;padding:0 8px;color:#cfe3ff;white-space:nowrap}
+main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6px 6px}
+.card{flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.row{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.badge{font-size:18px;font-weight:700;border-radius:6px;padding:2px 12px;background:#2a2f3d;color:var(--mute)}
+.badge.long{background:rgba(255,59,59,.16);color:var(--long)}
+.badge.flat{background:rgba(46,204,113,.12);color:var(--short)}
+.since{font-size:12px;color:var(--mute)}
+.px{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+.px b{font-size:16px}
+.px small{display:block;font-size:11px;color:var(--mute)}
+.kv{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 8px;margin-top:6px;font-size:12px;color:var(--mute);
+  font-variant-numeric:tabular-nums}
+.kv b{font-weight:400;color:var(--text);white-space:nowrap}
+.today{margin-top:6px;font-size:12px;border-radius:5px;padding:3px 8px;background:#1a1f2c;color:var(--mute)}
+.today.flip{background:rgba(255,176,32,.15);color:var(--warn);font-weight:700}
+.today[hidden]{display:none}
+.up{color:var(--long)}.dn{color:var(--short)}
+.chart{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;padding:5px 7px 6px}
+.ph{flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute);margin-bottom:4px;white-space:nowrap}
+.ph b{font-size:13px;color:var(--text)}
+.cw{position:relative;flex:1;min-height:0;border-radius:5px;overflow:hidden;background:#0e121b}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.zoom{position:absolute;left:5px;top:5px;display:flex;gap:3px}
+.zoom button{width:24px;height:22px;border-radius:5px;border:1px solid var(--line);background:rgba(19,23,34,.85);
+  color:var(--text);font-size:13px;cursor:pointer;padding:0}
+.tip{position:absolute;left:88px;top:5px;font-size:11px;color:var(--text);background:rgba(11,14,20,.85);
+  border:1px solid var(--line);border-radius:5px;padding:2px 6px;pointer-events:none;white-space:nowrap}
+.tip:empty{display:none}
+.wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:12px;color:var(--mute);background:#0e121b;padding:12px}
+.wait[hidden]{display:none}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:flex-end}
+.sheet[hidden]{display:none}
+.sheet .in{width:100%;max-width:560px;max-height:85dvh;overflow:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px 12px 0 0;padding:12px 14px 20px;font-size:13px;line-height:1.7;color:var(--mute)}
+.sheet .top{display:flex;align-items:center;justify-content:space-between;color:var(--text);font-weight:700;margin-bottom:4px}
+.sheet li{margin:4px 0}
+.sheet b{color:var(--text);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:3px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--mute);font-weight:400}
+td:first-child,th:first-child{text-align:left}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1>台股趨勢儀表板<small id="ver"></small></h1>
+  <button class="hbtn" id="logBtn">訊號紀錄</button>
+  <button class="hbtn" id="helpBtn">說明</button>
+  <i class="dot" id="dot" title="準備中"></i>
+</header>
+<div class="loadbar" id="loadBar" hidden><div class="fill" id="loadFill"></div><span id="loadTxt"></span></div>
+<main>
+  <section class="card">
+    <div class="row">
+      <span class="badge" id="badge">計算中</span>
+      <span class="since" id="since"></span>
+      <div class="px"><b id="idxPx">—</b> <span id="idxChg"></span><small id="idxTime">加權指數</small></div>
+    </div>
+    <div class="kv">
+      <span>指數進場</span><b id="kEntryIdx">—</b>
+      <span>正 2 進場</span><b id="kEntryEtf">—</b>
+      <span>正 2 現價</span><b id="kEtfNow">—</b>
+      <span>浮動</span><b id="kFloat">—</b>
+    </div>
+    <div class="today" id="today" hidden></div>
+  </section>
+  <section class="chart">
+    <div class="ph"><b>加權指數 日線</b><span>Range Filter 取樣 15・倍數 4</span><span style="margin-left:auto">紅底＝持有正 2</span></div>
+    <div class="cw" id="cw">
+      <canvas id="cv"></canvas>
+      <div class="zoom"><button id="zIn">＋</button><button id="zOut">－</button><button id="zAll">⤢</button></div>
+      <div class="tip" id="tip"></div>
+      <div class="wait" id="wait">載入中…</div>
+    </div>
+  </section>
+</main>
+</div>
+
+<div class="sheet" id="logSheet" hidden>
+  <div class="in">
+    <div class="top">訊號紀錄（依載入的資料重算）<button class="hbtn" data-close>關閉</button></div>
+    <div style="font-size:11px;margin-bottom:6px">每次都是收盤價成交・正 2 用證交所收盤價・未扣手續費與證交稅</div>
+    <div id="logBody">尚未計算</div>
+  </div>
+</div>
+
+<div class="sheet" id="helpSheet" hidden>
+  <div class="in">
+    <div class="top">說明<button class="hbtn" data-close>關閉</button></div>
+    <ul style="padding-left:18px;margin:4px 0">
+      <li><b>規則</b>：每天收盤看加權指數日線的 Range Filter（取樣 15、倍數 4）。轉多就買進台灣 50 正 2（00631L），轉空就賣掉、拿現金。不放空、不買反向。</li>
+      <li><b>什麼時候動作</b>：訊號以收盤價為準。盤中顯示的「今日暫定」會隨指數變動，<b>13:25 前後</b>看一次，跟收盤集合競價一起成交。</li>
+      <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
+      <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
+      <li><b>資料來源</b>：全部直接讀證交所——指數日線、盤中每 5 秒指數、正 2 日成交。正 2 盤中價證交所沒開放給網頁讀，用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>。</li>
+      <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+"use strict";
+const VERSION = "v1.0.0";
+const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
+const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
+const ETF = "00631L";
+const TWSE = "https://www.twse.com.tw/rwd/zh";
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const p2 = n => String(n).padStart(2, "0");
+const num = s => +String(s).replace(/,/g, "");
+const fmt = (v, d = 2) => v == null || !isFinite(v) ? "—" : v.toLocaleString("zh-TW", {minimumFractionDigits:d, maximumFractionDigits:d});
+const pct = v => v == null || !isFinite(v) ? "—" : (v >= 0 ? "+" : "") + (v*100).toFixed(2) + "%";
+
+/* ============ 台北時間 ============ */
+const TPE = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Taipei", year:"numeric", month:"2-digit", day:"2-digit",
+  hour:"2-digit", minute:"2-digit", weekday:"short", hourCycle:"h23"});
+function tpeNow(){
+  const o = {}; for(const p of TPE.formatToParts(new Date())) o[p.type] = p.value;
+  return {ymd:`${o.year}-${o.month}-${o.day}`, y:+o.year, m:+o.month, hm:+o.hour*60 + +o.minute, wd:o.weekday};
+}
+const inSession = n => !["Sat","Sun"].includes(n.wd) && n.hm >= 9*60 && n.hm <= 13*60+35;
+// 民國日期 115/10/01 → 2026-10-01
+const roc = s => { const [y, m, d] = s.trim().split("/"); return `${+y + 1911}-${m}-${d}`; };
+const md = ymd => ymd.slice(5).replace("-", "/");
+
+/* ============ 證交所：過去的月份不會再變，存 localStorage；當月每次重抓 ============
+   證交所短時間大量請求會暫時封鎖，所以第一次載入每個請求間隔 1.2 秒。 */
+let lastReq = 0;
+async function twse(path, cacheKey){
+  if(cacheKey){ try{ const v = localStorage.getItem(cacheKey); if(v) return JSON.parse(v); }catch(e){} }
+  const wait = lastReq + 1200 - Date.now(); if(wait > 0) await sleep(wait);
+  lastReq = Date.now();
+  const r = await fetch(TWSE + path, {cache:"no-store"});
+  if(!r.ok) throw new Error(`證交所 HTTP ${r.status}`);
+  const j = await r.json();
+  if(cacheKey && j.stat === "OK"){ try{ localStorage.setItem(cacheKey, JSON.stringify(j)); }catch(e){} }
+  return j;
+}
+function monthList(n){
+  const t = tpeNow(), out = [];
+  for(let k = n-1; k >= 0; k--){
+    let y = t.y, m = t.m - k; while(m <= 0){ m += 12; y--; }
+    out.push({y, m, cur: k === 0});
+  }
+  return out;
+}
+const mkey = (y, m) => `${y}${p2(m)}`;
+async function loadIndex(prog){
+  const B = [], ms = monthList(MONTHS);
+  for(let i = 0; i < ms.length; i++){
+    const {y, m, cur} = ms[i];
+    prog && prog(i, ms.length, `加權指數 ${y}/${p2(m)}`);
+    const j = await twse(`/TAIEX/MI_5MINS_HIST?response=json&date=${mkey(y,m)}01`, cur ? null : `tst-idx-${mkey(y,m)}`);
+    for(const r of (j.data || [])) B.push({d:roc(r[0]), o:num(r[1]), h:num(r[2]), l:num(r[3]), c:num(r[4])});
+  }
+  return B;
+}
+const ETFM = new Map();   // 'YYYYMM' → {日期: 收盤}
+async function etfMonth(ymd){
+  const k = ymd.slice(0,4) + ymd.slice(5,7), t = tpeNow(), cur = k === mkey(t.y, t.m);
+  if(ETFM.has(k) && !cur) return ETFM.get(k);
+  const j = await twse(`/afterTrading/STOCK_DAY?response=json&stockNo=${ETF}&date=${k}01`, cur ? null : `tst-etf-${k}`);
+  const m = {}; for(const r of (j.data || [])) m[roc(r[0])] = num(r[6]);
+  ETFM.set(k, m); return m;
+}
+async function etfClose(ymd){ return (await etfMonth(ymd))[ymd] ?? null; }
+async function etfPrevClose(ymd){   // ymd 之前最近一個交易日的收盤
+  let m = await etfMonth(ymd), ks = Object.keys(m).filter(d => d < ymd).sort();
+  if(!ks.length){ const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(0); m = await etfMonth(d.toISOString().slice(0,10)); ks = Object.keys(m).filter(d => d < ymd).sort(); }
+  return ks.length ? m[ks[ks.length-1]] : null;
+}
+// 盤中每 5 秒指數 → 今天這根 K
+async function loadToday(ymd){
+  const j = await twse(`/TAIEX/MI_5MINS_INDEX?response=json&date=${ymd.replace(/-/g,"")}`, null);
+  const v = (j.data || []).map(r => [r[0], num(r[1])]).filter(r => r[1] > 0);
+  if(!v.length) return null;
+  const xs = v.map(r => r[1]);
+  return {d:ymd, o:xs[0], h:Math.max(...xs), l:Math.min(...xs), c:xs[xs.length-1], at:v[v.length-1][0], live:true};
+}
+
+/* ============ Range Filter：逐行照指數趨勢儀表板 calcRF（也就是回測程式 bt.py 用的那支） ============ */
+function pineMA(src, len, alpha){
+  const out = new Array(src.length).fill(null);
+  let prev = null, sum = 0, cnt = 0;
+  for(let i = 0; i < src.length; i++){
+    const v = src[i];
+    if(v == null){ out[i] = prev; continue; }
+    if(prev === null){ sum += v; cnt++; if(cnt === len){ prev = sum/len; out[i] = prev; } }
+    else{ prev = alpha*v + (1-alpha)*prev; out[i] = prev; }
+  }
+  return out;
+}
+const pineEma = (s, n) => pineMA(s, n, 2/(n+1));
+const pineRma = (s, n) => pineMA(s, n, 1/n);
+function trueRange(B){
+  return B.map((b, i) => i === 0 ? b.h - b.l : Math.max(b.h - b.l, Math.abs(b.h - B[i-1].c), Math.abs(b.l - B[i-1].c)));
+}
+function calcRF(B, P){
+  const n = B.length;
+  const src = B.map(b => (b.h + b.l) / 2);
+  const diff = src.map((v, i) => i === 0 ? null : Math.abs(v - src[i-1]));
+  const avrng = pineEma(diff, P.per);
+  const smrng = pineEma(avrng, P.per*2 - 1).map(v => v == null ? null : v * P.mult);
+  const filt = new Array(n).fill(null);
+  let prev = null;
+  for(let i = 0; i < n; i++){
+    const x = src[i], r = smrng[i];
+    if(r == null){ prev = null; continue; }
+    const pv = prev == null ? 0 : prev;
+    filt[i] = prev = x > pv ? (x - r < pv ? pv : x - r) : (x + r > pv ? pv : x + r);
+  }
+  const atr = pineRma(trueRange(B), P.atrLen);
+  const fcol = new Array(n).fill(0), pos = new Array(n).fill(0), sigs = [];
+  let up = 0, dn = 0, ci = null, cur = 0;
+  for(let i = 0; i < n; i++){
+    const f = filt[i], pf = i ? filt[i-1] : null;
+    if(f != null && pf != null){
+      up = f > pf ? up + 1 : f < pf ? 0 : up;
+      dn = f < pf ? dn + 1 : f > pf ? 0 : dn;
+    }
+    fcol[i] = up > 0 ? 1 : dn > 0 ? -1 : 0;
+    const s = src[i], ps = i ? src[i-1] : null, moved = ps != null && s !== ps;
+    const longCond  = f != null && s > f && moved && up > 0;
+    const shortCond = f != null && s < f && moved && dn > 0;
+    const c = B[i].c, a = atr[i];
+    const longF  = !P.useAtr || (a != null && c > c - a * P.atrMult);
+    const shortF = !P.useAtr || (a != null && c < c + a * P.atrMult);
+    const longSig = longCond && longF, shortSig = shortCond && shortF;
+    const pci = ci;
+    ci = longSig ? 1 : shortSig ? -1 : pci;
+    if(longSig && pci === -1){ cur = 1; sigs.push({i, d:1}); }
+    else if(shortSig && pci === 1){ cur = -1; sigs.push({i, d:-1}); }
+    pos[i] = cur;
+  }
+  const warm = 6 * P.per;
+  return {pos, filt, fcol, sigs: sigs.filter(s => s.i >= warm), warm};
+}
+
+/* ============ 狀態 ============ */
+let HIST = [], TODAY = null, BARS = [], R = null, TRADES = [];
+const ZOOM = {span:120, off:0};
+
+async function compute(){
+  BARS = HIST.slice();
+  if(TODAY && (!BARS.length || BARS[BARS.length-1].d < TODAY.d)) BARS.push(TODAY);
+  R = calcRF(BARS, P);
+  const n = BARS.length, last = n - 1;
+  const live = !!(BARS[last] && BARS[last].live);
+  const ci = live ? last - 1 : last;            // 最後一根「已確定」的 K
+  const hold = R.pos[ci] === 1;
+  // 這次部位的起點
+  let k = ci; while(k > 0 && R.pos[k-1] === R.pos[ci]) k--;
+  const entry = BARS[k];
+  $("badge").textContent = hold ? "持有正 2" : "空手";
+  $("badge").className = "badge " + (hold ? "long" : "flat");
+  $("since").textContent = k > R.warm ? `${md(entry.d)} 起` : "";
+  const now = BARS[last], prv = BARS[last-1];
+  $("idxPx").textContent = fmt(now.c);
+  const ch = prv ? now.c / prv.c - 1 : null;
+  $("idxChg").innerHTML = ch == null ? "" : `<span class="${ch >= 0 ? "up" : "dn"}" style="font-size:12px">${pct(ch)}</span>`;
+  $("idxTime").textContent = live ? `加權指數 盤中 ${now.at.slice(0,5)}` : `加權指數 ${md(now.d)} 收盤`;
+  $("kEntryIdx").textContent = hold && k > R.warm ? fmt(entry.c) : "—";
+  // 今日暫定：用盤中這根 K 試算
+  const td = $("today");
+  if(live){
+    const flip = R.pos[last] !== R.pos[ci];
+    td.hidden = false; td.className = "today" + (flip ? " flip" : "");
+    td.textContent = flip
+      ? `⚠ 今日暫定：若照目前指數收盤，會轉為「${R.pos[last] === 1 ? "持有正 2" : "空手"}」——13:25 前後再確認`
+      : `今日暫定：照目前指數收盤，維持「${hold ? "持有正 2" : "空手"}」`;
+  }else td.hidden = true;
+  draw();
+  // 正 2 價格（要再抓證交所，放在畫完圖之後）
+  try{
+    let etfNow = null, tag = "";
+    if(live){
+      const pc = await etfPrevClose(now.d);
+      if(pc && ch != null){ etfNow = pc * (1 + 2 * ch); tag = "（估算）"; }
+    }else{
+      etfNow = await etfClose(now.d); tag = etfNow ? "（收盤）" : "";
+    }
+    $("kEtfNow").textContent = etfNow ? fmt(etfNow) + tag : "—";
+    if(hold && k > R.warm){
+      const ep = await etfClose(entry.d);
+      $("kEntryEtf").textContent = ep ? fmt(ep) : "—";
+      const fl = ep && etfNow ? etfNow / ep - 1 : null;
+      $("kFloat").innerHTML = fl == null ? "—" : `<span class="${fl >= 0 ? "up" : "dn"}">${pct(fl)}</span>`;
+    }else{ $("kEntryEtf").textContent = "—"; $("kFloat").textContent = "—"; }
+  }catch(e){ console.warn("正 2 價格", e); }
+}
+
+async function buildLog(){
+  const body = $("logBody");
+  if(!R){ body.textContent = "尚未計算"; return; }
+  body.textContent = "讀取正 2 收盤價…";
+  const last = BARS.length - 1, live = !!BARS[last].live, ci = live ? last - 1 : last;
+  const rows = []; let ent = R.pos[R.warm] === 1 ? R.warm : null;   // 暖機結束時已持有，從那天記起
+  for(let i = R.warm + 1; i <= ci; i++){
+    const p = R.pos[i], pp = R.pos[i-1];
+    if(p === 1 && pp !== 1) ent = i;
+    if(p !== 1 && pp === 1 && ent != null){ rows.push([ent, i]); ent = null; }
+  }
+  if(ent != null) rows.push([ent, null]);
+  const html = [];
+  for(const [a, b] of rows.reverse()){
+    const ea = await etfClose(BARS[a].d), eb = b != null ? await etfClose(BARS[b].d) : null;
+    const r = ea && eb ? eb / ea - 1 : null;
+    html.push(`<tr><td>${md(BARS[a].d)}${a === R.warm && R.pos[a-1] === 1 ? "＊" : ""}</td><td>${fmt(BARS[a].c,0)}</td><td>${fmt(ea)}</td>` +
+      (b != null ? `<td>${md(BARS[b].d)}</td><td>${fmt(eb)}</td><td class="${r >= 0 ? "up" : "dn"}">${pct(r)}</td>`
+                 : `<td colspan="3" style="text-align:center">持有中</td>`) + `</tr>`);
+  }
+  body.innerHTML = rows.length
+    ? `<table><tr><th>買進</th><th>指數</th><th>正 2</th><th>賣出</th><th>正 2</th><th>報酬</th></tr>${html.join("")}</table>
+       <div style="font-size:11px;margin-top:6px">只列出載入的 ${MONTHS} 個月內（扣掉前 ${R.warm} 根暖機）的訊號；標＊的是暖機結束時已經持有，以那天收盤起算。</div>`
+    : "載入的期間內沒有進出。";
+}
+
+/* ============ 圖 ============ */
+const cv = $("cv"), ctx = cv.getContext("2d");
+let VIEW = null;
+function draw(){
+  const box = $("cw").getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if(!box.width) return;
+  cv.width = box.width * dpr; cv.height = box.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = box.width, H = box.height, RA = 50, BA = 16;
+  ctx.clearRect(0, 0, W, H);
+  if(!R) return;
+  const total = BARS.length - R.warm;   // 暖機段不畫
+  const show = Math.max(20, Math.min(ZOOM.span, total));
+  const off = Math.max(0, Math.min(ZOOM.off, total - show));
+  ZOOM.span = show; ZOOM.off = off;
+  const e = BARS.length - off, s = e - show;
+  let lo = Infinity, hi = -Infinity;
+  for(let i = s; i < e; i++){ lo = Math.min(lo, BARS[i].l, R.filt[i] ?? Infinity); hi = Math.max(hi, BARS[i].h, R.filt[i] ?? -Infinity); }
+  const pad = (hi - lo) * .06; lo -= pad; hi += pad;
+  const cw = (W - RA) / show, X = i => (i - s + .5) * cw, Y = v => (H - BA) * (1 - (v - lo) / (hi - lo));
+  VIEW = {s, e, cw, X, Y, W, H, RA};
+  // 持有期間紅底
+  ctx.fillStyle = "rgba(255,59,59,.07)";
+  for(let i = s; i < e; i++){   // 連續的持有段一次畫完，逐根畫會有縫
+    if(R.pos[i] !== 1) continue;
+    let j = i; while(j + 1 < e && R.pos[j+1] === 1) j++;
+    ctx.fillRect(X(i) - cw/2, 0, (j - i + 1) * cw, H - BA); i = j;
+  }
+  // 格線與價格軸
+  ctx.font = "10px sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  const step = niceStep((hi - lo) / 5);
+  for(let v = Math.ceil(lo / step) * step; v < hi; v += step){
+    const y = Y(v); ctx.strokeStyle = "#1a1f2b"; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RA, y); ctx.stroke();
+    ctx.fillStyle = "#6b7387"; ctx.fillText(v.toLocaleString("zh-TW"), W - 3, y);
+  }
+  // K 棒（台股：紅漲綠跌）
+  for(let i = s; i < e; i++){
+    const b = BARS[i], x = X(i), upb = b.c >= b.o, col = upb ? "#ff3b3b" : "#2ecc71";
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
+    const y1 = Y(Math.max(b.o, b.c)), y2 = Y(Math.min(b.o, b.c)), bw = Math.max(1, cw * .62);
+    ctx.globalAlpha = b.live ? .55 : 1;
+    ctx.fillRect(x - bw/2, y1, bw, Math.max(1, y2 - y1));
+    ctx.globalAlpha = 1;
+  }
+  // 濾網線（線色＝濾網方向）
+  ctx.lineWidth = 2;
+  for(let i = Math.max(s, 1); i < e; i++){
+    if(R.filt[i] == null || R.filt[i-1] == null) continue;
+    ctx.strokeStyle = R.fcol[i] > 0 ? "#ff3b3b" : R.fcol[i] < 0 ? "#2ecc71" : "#7a8494";
+    ctx.beginPath(); ctx.moveTo(X(i-1), Y(R.filt[i-1])); ctx.lineTo(X(i), Y(R.filt[i])); ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+  // 進出記號
+  for(const g of R.sigs){
+    if(g.i < s || g.i >= e) continue;
+    const b = BARS[g.i], x = X(g.i), z = Math.max(5, Math.min(8, cw * .6));
+    ctx.fillStyle = g.d > 0 ? "#ff3b3b" : "#2ecc71"; ctx.beginPath();
+    if(g.d > 0){ const y = Y(b.l) + 6; ctx.moveTo(x, y); ctx.lineTo(x - z, y + z*1.5); ctx.lineTo(x + z, y + z*1.5); }
+    else{ const y = Y(b.h) - 6; ctx.moveTo(x, y); ctx.lineTo(x - z, y - z*1.5); ctx.lineTo(x + z, y - z*1.5); }
+    ctx.fill();
+  }
+  // 日期軸：量字寬，會疊就跳過
+  ctx.fillStyle = "#6b7387"; ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+  let lastR = -1e9;
+  for(let i = s; i < e; i++){
+    const b = BARS[i], first = i === s || BARS[i-1].d.slice(0,7) !== b.d.slice(0,7);
+    if(!first) continue;
+    const t = b.d.slice(5,7) === "01" || i === s ? b.d.slice(0,7).replace("-", "/") : +b.d.slice(5,7) + "月";
+    const w = ctx.measureText(t).width, x = Math.max(w/2, X(i));
+    if(x - w/2 < lastR + 10) continue;
+    ctx.fillText(t, x, H - 4); lastR = x + w/2;
+  }
+}
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
+
+// 提示框、拖曳、滾輪、雙指
+let drag = null;
+function idxAt(px){ if(!VIEW) return null; const i = VIEW.s + Math.floor(px / VIEW.cw); return i >= VIEW.s && i < VIEW.e ? i : null; }
+function tipAt(px){
+  const i = idxAt(px); if(i == null){ $("tip").textContent = ""; return; }
+  const b = BARS[i], ch = i ? b.c / BARS[i-1].c - 1 : 0;
+  $("tip").textContent = `${b.d.replace(/-/g,"/")}${b.live ? " 盤中" : ""}  開 ${fmt(b.o,0)} 高 ${fmt(b.h,0)} 低 ${fmt(b.l,0)} 收 ${fmt(b.c,0)} ${pct(ch)}  濾網 ${fmt(R.filt[i],0)}`;
+}
+const ptrs = new Map(); let pinch = null;
+cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e.offsetX);
+  if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = {d:Math.abs(a - b), span:ZOOM.span}; drag = null; }
+  else drag = {x:e.offsetX, off:ZOOM.off}; tipAt(e.offsetX); });
+cv.addEventListener("pointermove", e => {
+  if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
+  if(pinch && ptrs.size === 2){ const [a, b] = [...ptrs.values()]; const d = Math.abs(a - b);
+    if(d > 10){ ZOOM.span = Math.round(pinch.span * pinch.d / d); draw(); } return; }
+  if(drag && VIEW){ ZOOM.off = Math.round(drag.off + (e.offsetX - drag.x) / VIEW.cw); draw(); }
+  tipAt(e.offsetX); });
+const up = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch = null; drag = null; };
+cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+cv.addEventListener("pointerleave", () => { if(!drag) $("tip").textContent = ""; });
+cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
+cv.addEventListener("dblclick", () => { ZOOM.span = 120; ZOOM.off = 0; draw(); });
+$("zIn").onclick = () => { ZOOM.span = Math.round(ZOOM.span / 1.4); draw(); };
+$("zOut").onclick = () => { ZOOM.span = Math.round(ZOOM.span * 1.4); draw(); };
+$("zAll").onclick = () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); };
+window.addEventListener("resize", () => draw());
+
+// 彈出面板
+$("logBtn").onclick = () => { $("logSheet").hidden = false; buildLog(); };
+$("helpBtn").onclick = () => { $("helpSheet").hidden = false; };
+document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => {
+  if(e.target === s || e.target.hasAttribute("data-close")) s.hidden = true; }));
+
+/* ============ 啟動與更新 ============
+   盤中每 30 秒抓一次每 5 秒指數（只更新今天這根，歷史不重抓）；收盤後抓一次當月日線就停。 */
+function setDot(cls, t){ const d = $("dot"); d.className = "dot " + cls; d.title = t; }
+async function start(){
+  $("ver").textContent = VERSION;
+  const lb = $("loadBar");
+  try{
+    lb.hidden = false;
+    HIST = await loadIndex((i, n, t) => { $("loadFill").style.width = (i / n * 100) + "%"; $("loadTxt").textContent = `讀取 ${t}（${i+1}/${n}）`; });
+    lb.hidden = true;
+    const n = tpeNow();
+    if(inSession(n) && !HIST.some(b => b.d === n.ymd)) TODAY = await loadToday(n.ymd).catch(() => null);
+    $("wait").hidden = true;
+    await compute();
+    setDot(inSession(n) ? "live" : "", inSession(n) ? "盤中更新中" : "已收盤");
+  }catch(e){
+    lb.hidden = true; $("wait").textContent = "載入失敗：" + (e.message || e) + "（證交所可能暫時限制，稍後重新整理）";
+    setDot("err", String(e.message || e));
+    return;
+  }
+  let closedDone = false;
+  setInterval(async () => {
+    if(document.hidden) return;
+    const n = tpeNow();
+    try{
+      if(inSession(n) && !HIST.some(b => b.d === n.ymd)){
+        const t = await loadToday(n.ymd); if(t){ TODAY = t; await compute(); }
+        setDot("live", "盤中更新中"); closedDone = false;
+      }else if(!closedDone && n.hm > 13*60+40 && !["Sat","Sun"].includes(n.wd)){
+        // 收盤後補當月日線，確定今天這根
+        const ms = monthList(1)[0];
+        const j = await twse(`/TAIEX/MI_5MINS_HIST?response=json&date=${mkey(ms.y, ms.m)}01`, null);
+        const rows = (j.data || []).map(r => ({d:roc(r[0]), o:num(r[1]), h:num(r[2]), l:num(r[3]), c:num(r[4])}));
+        if(rows.some(b => b.d === n.ymd)){
+          HIST = HIST.filter(b => b.d.slice(0,7) !== rows[0].d.slice(0,7)).concat(rows); TODAY = null; ETFM.clear();
+          await compute(); closedDone = true; setDot("", "已收盤");
+        }
+      }
+    }catch(e){ setDot("warn", "更新失敗：" + (e.message || e)); }
+  }, 30000);
+}
+start();
+</script>
+</body>
+</html>
