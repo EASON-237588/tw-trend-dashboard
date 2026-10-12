@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.0.3</title>
+<title>台股趨勢儀表板 v1.1.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +27,7 @@ h1{margin:0;font-size:16px;font-weight:700;letter-spacing:.5px;white-space:nowra
 h1 small{font-size:11px;color:#ff2d55;font-weight:400;margin-left:5px}
 .hbtn{flex:none;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line);
   border-radius:6px;padding:3px 9px;cursor:pointer}
-#logBtn{margin-left:auto}
+#curveBtn{margin-left:auto}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);display:inline-block;flex:none;margin-left:4px}
 .dot.live{background:#2ecc71;animation:blink 1.2s ease-in-out infinite}
 .dot.warn{background:var(--warn)}.dot.err{background:var(--long)}
@@ -87,6 +87,7 @@ td:first-child,th:first-child{text-align:left}
 <div class="app">
 <header>
   <h1>台股趨勢儀表板<small id="ver"></small></h1>
+  <button class="hbtn" id="curveBtn">曲線圖</button>
   <button class="hbtn" id="logBtn">訊號紀錄</button>
   <button class="hbtn" id="helpBtn">說明</button>
   <i class="dot" id="dot" title="準備中"></i>
@@ -127,6 +128,15 @@ td:first-child,th:first-child{text-align:left}
   </div>
 </div>
 
+<!-- v1.1.0：實際進出紀錄的績效曲線，由 實際紀錄/更新紀錄.py 每次開工時重畫 -->
+<div class="sheet" id="curveSheet" hidden>
+  <div class="in">
+    <div class="top">績效曲線（實際紀錄）<button class="hbtn" data-close>關閉</button></div>
+    <div style="font-size:11px;margin-bottom:6px">每次開工跑紀錄程式時更新・紅線＝策略、灰虛線＝0050 抱著（含配息）・未扣手續費與證交稅</div>
+    <img id="curveImg" alt="績效曲線圖" style="display:block;width:100%;border-radius:6px;background:#fcfcfb">
+  </div>
+</div>
+
 <div class="sheet" id="helpSheet" hidden>
   <div class="in">
     <div class="top">說明<button class="hbtn" data-close>關閉</button></div>
@@ -143,7 +153,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.0.3";
+const VERSION = "v1.1.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -489,6 +499,7 @@ window.addEventListener("resize", () => draw());
 
 // 彈出面板
 $("logBtn").onclick = () => { $("logSheet").hidden = false; buildLog(); };
+$("curveBtn").onclick = () => { $("curveImg").src = "實際紀錄/績效曲線.png?t=" + Date.now(); $("curveSheet").hidden = false; };
 $("helpBtn").onclick = () => { $("helpSheet").hidden = false; };
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => {
   if(e.target === s || e.target.hasAttribute("data-close")) s.hidden = true; }));
