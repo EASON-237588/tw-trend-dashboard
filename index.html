@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.2.2</title>
+<title>台股趨勢儀表板 v1.3.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -57,7 +57,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6p
 .up{color:var(--long)}.dn{color:var(--short)}
 .chart{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);
   border-radius:8px;padding:5px 7px 6px}
-.ph{flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute);margin-bottom:4px;white-space:nowrap}
+.ph{flex:none;display:flex;align-items:center;gap:6px;overflow:hidden;font-size:12px;color:var(--mute);margin-bottom:4px;white-space:nowrap}
 .ph b{font-size:13px;color:var(--text)}
 .cw{position:relative;flex:1;min-height:0;border-radius:5px;overflow:hidden;background:#0e121b}
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
@@ -120,11 +120,20 @@ td:first-child,th:first-child{text-align:left}
   </section>
   <!-- v1.2.0：00631L 日線，跟上面那張同步縮放；分割前價格已換算成分割後單位 -->
   <section class="chart">
-    <div class="ph"><b>00631L 台灣 50 正 2 日線</b><span>2026/03 分割前已換算</span><span style="margin-left:auto">▲買進 ▼賣出</span></div>
+    <div class="ph"><b>00631L 正 2 日線</b><span>分割前已換算</span><span style="margin-left:auto">▲買進 ▼賣出</span></div>
     <div class="cw" id="cw2">
       <canvas id="cv2"></canvas>
       <div class="tip" id="tip2" style="left:5px"></div>
       <div class="wait" id="wait2">載入正 2…</div>
+    </div>
+  </section>
+  <!-- v1.3.0：三大法人買賣超（參考用，不影響買賣規則；回測加進規則沒有幫助） -->
+  <section class="chart" style="flex:.7">
+    <div class="ph"><b>三大法人</b><span>億元</span><span id="instHead" style="margin-left:auto"></span></div>
+    <div class="cw" id="cw3">
+      <canvas id="cv3"></canvas>
+      <div class="tip" id="tip3" style="left:5px"></div>
+      <div class="wait" id="wait3">載入三大法人…</div>
     </div>
   </section>
 </main>
@@ -156,6 +165,7 @@ td:first-child,th:first-child{text-align:left}
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
       <li><b>資料來源</b>：全部直接讀證交所——指數日線、盤中每 5 秒指數、正 2 日成交。正 2 盤中價證交所沒開放給網頁讀，用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>。</li>
+      <li><b>三大法人（第三格）</b>：只當參考，不影響買賣規則。回測 2004～2026 把外資、投信、合計買賣超加進規則（單獨用、加嚴、放寬共 72 種），沒有一種能在三段都穩定贏過現行規則。資料來自 FinMind，當天未更新時改用證交所，約下午 3 點後公布。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
   </div>
@@ -163,7 +173,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.2.2";
+const VERSION = "v1.3.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -382,6 +392,10 @@ async function compute(){
       ? `⚠ 今日暫定：若照目前指數收盤，會轉為「${R.pos[last] === 1 ? "持有正 2" : "空手"}」——13:25 前後再確認`
       : `今日暫定：照目前指數收盤，維持「${hold ? "持有正 2" : "空手"}」`;
   }else td.hidden = true;
+  IB = BARS.map(b => INST[b.d] ? {...INST[b.d], d:b.d} : null);
+  { let q = IB.length - 1; while(q >= 0 && !IB[q]) q--;
+    const z = q >= 0 ? IB[q] : null;
+    $("instHead").textContent = z ? `${md(z.d)} 外資 ${sg(z.f)} 投信 ${sg(z.t)} 自營 ${sg(z.dl)}` : ""; }
   draw();
   // v1.2.0：正 2 日 K（第一次要抓 18 個月，之後只抓當月）
   try{ EB = await etfBars(); $("wait2").hidden = true; drawOne(CH[1]); }
@@ -439,10 +453,46 @@ async function buildLog(){
 /* ============ 圖 ============ */
 /* v1.2.0：兩張圖（加權指數、00631L）共用同一個縮放範圍；指數那張多畫濾網線 */
 let EB = null;   // 正 2 日 K，跟 BARS 對齊
+let INST = {}, IB = null;   // v1.3.0：三大法人買賣超（億元）{f 外資, t 投信, dl 自營商, a 合計}，IB 跟 BARS 對齊
 const CH = [
   {cv:$("cv"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
   {cv:$("cv2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
+  {cv:$("cv3"), box:"cw3", tip:"tip3", S:() => IB,   bar:true,   dec:0},
 ];
+/* 歷史用 FinMind（免費、允許跨網域、一次抓整段）；最新一天 FinMind 還沒更新時改抓證交所當天的表 */
+async function loadInst(){
+  const n = tpeNow();
+  const r = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockTotalInstitutionalInvestors&start_date=${BARS[0].d}&end_date=${n.ymd}`);
+  if(!r.ok) throw new Error(`FinMind HTTP ${r.status}`);
+  const M = {};
+  for(const x of (await r.json()).data || []){
+    const m = M[x.date] || (M[x.date] = {f:0, t:0, dl:0, a:0}), v = (x.buy - x.sell) / 1e8;
+    if(x.name === "Foreign_Investor" || x.name === "Foreign_Dealer_Self") m.f += v;
+    else if(x.name === "Investment_Trust") m.t += v;
+    else if(x.name === "total") m.a = v;
+    else m.dl += v;   // Dealer_self、Dealer_Hedging（2014 前叫 Dealer）
+  }
+  const last = HIST[HIST.length-1].d;
+  if(!M[last]){
+    try{
+      const j = await twse(`/fund/BFI82U?type=day&dayDate=${last.replace(/-/g,"")}&response=json`, null);
+      if(j.stat === "OK"){
+        const m = {f:0, t:0, dl:0, a:0};
+        for(const row of j.data || []){ const v = num(row[3]) / 1e8, k = row[0];
+          if(k.startsWith("外資")) m.f += v; else if(k === "投信") m.t += v; else if(k.startsWith("自營商")) m.dl += v; else if(k === "合計") m.a = v; }
+        M[last] = m;
+      }
+    }catch(e){ console.warn("證交所三大法人", e); }
+  }
+  INST = M;
+}
+const sg = v => (v >= 0 ? "+" : "") + Math.round(v).toLocaleString("zh-TW");
+let instTry = 0;
+async function refreshInst(){
+  instTry = Date.now();
+  try{ await loadInst(); $("wait3").hidden = true; await compute(); }
+  catch(e){ $("wait3").textContent = "三大法人載入失敗：" + (e.message || e); }
+}
 CH.forEach(c => c.ctx = c.cv.getContext("2d"));
 let VIEW = null;
 function draw(){ for(const c of CH) drawOne(c); }
@@ -461,8 +511,11 @@ function drawOne(C){
   ZOOM.span = show; ZOOM.off = off;
   const e = BARS.length - off, s = e - show;
   let lo = Infinity, hi = -Infinity;
-  for(let i = s; i < e; i++){ if(!D[i]) continue; lo = Math.min(lo, D[i].l); hi = Math.max(hi, D[i].h);
+  for(let i = s; i < e; i++){ if(!D[i]) continue;
+    if(C.bar){ lo = Math.min(lo, 0, D[i].a); hi = Math.max(hi, 0, D[i].a); continue; }
+    lo = Math.min(lo, D[i].l); hi = Math.max(hi, D[i].h);
     if(C.filt && R.filt[i] != null){ lo = Math.min(lo, R.filt[i]); hi = Math.max(hi, R.filt[i]); } }
+  if(!isFinite(lo)){ lo = -1; hi = 1; }
   const pad = (hi - lo) * .06; lo -= pad; hi += pad;
   const cw = (W - RA) / show, X = i => (i - s + .5) * cw, Y = v => (H - BA) * (1 - (v - lo) / (hi - lo));
   C.view = VIEW = {s, e, cw, X, Y, W, H, RA};
@@ -480,8 +533,16 @@ function drawOne(C){
     const y = Y(v); ctx.strokeStyle = "#1a1f2b"; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RA, y); ctx.stroke();
     ctx.fillStyle = "#6b7387"; ctx.fillText(v.toLocaleString("zh-TW", {maximumFractionDigits: step < 1 ? 1 : 0}), W - 3, y);
   }
+  // v1.3.0：三大法人柱狀圖（紅＝合計買超、綠＝合計賣超），畫完日期軸就結束
+  if(C.bar){
+    ctx.strokeStyle = "#3a4152"; ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(W - RA, Y(0)); ctx.stroke();
+    const bw = Math.max(1, cw * .7);
+    for(let i = s; i < e; i++){ const b = D[i]; if(!b) continue;
+      ctx.fillStyle = b.a >= 0 ? "#ff3b3b" : "#2ecc71";
+      const y0 = Y(0), y1 = Y(b.a); ctx.fillRect(X(i) - bw/2, Math.min(y0, y1), bw, Math.max(1, Math.abs(y1 - y0))); }
+  }
   // K 棒：v1.0.2 使用者要求改灰色（v1.0.1 是淺灰，漲跌同色），讓濾網線與進出記號比較顯眼
-  for(let i = s; i < e; i++){
+  for(let i = s; !C.bar && i < e; i++){
     const b = D[i]; if(!b) continue;
     const x = X(i), col = "#7d8494";
     ctx.strokeStyle = col; ctx.fillStyle = col;
@@ -501,7 +562,7 @@ function drawOne(C){
   ctx.lineWidth = 1;
   // 進出記號
   for(const g of R.sigs){
-    if(g.i < s || g.i >= e || !D[g.i]) continue;
+    if(C.bar || g.i < s || g.i >= e || !D[g.i]) continue;
     const b = D[g.i], x = X(g.i), z = Math.max(5, Math.min(8, cw * .6));
     ctx.fillStyle = g.d > 0 ? "#ff3b3b" : "#2ecc71"; ctx.beginPath();
     if(g.d > 0){ const y = Y(b.l) + 6; ctx.moveTo(x, y); ctx.lineTo(x - z, y + z*1.5); ctx.lineTo(x + z, y + z*1.5); }
@@ -530,6 +591,7 @@ function tipAt(px){
   for(const C of CH){
     const D = C.S(), b = ok && D ? D[i] : null;
     if(!b){ $(C.tip).textContent = ""; continue; }
+    if(C.bar){ $(C.tip).textContent = `${b.d.replace(/-/g,"/")}  外資 ${sg(b.f)}  投信 ${sg(b.t)}  自營 ${sg(b.dl)}  合計 ${sg(b.a)} 億`; continue; }
     let p = i - 1; while(p >= 0 && !D[p]) p--;
     const ch = p >= 0 ? b.c / D[p].c - 1 : 0, f = v => fmt(v, C.dec);
     $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (C.filt ? " 盤中" : " 盤中估算") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
@@ -581,6 +643,7 @@ async function start(){
     $("wait").hidden = true;
     await compute();
     setDot(inSession(n) ? "live" : "", inSession(n) ? "盤中更新中" : "已收盤");
+    await refreshInst();
   }catch(e){
     lb.hidden = true; $("wait").textContent = "載入失敗：" + (e.message || e) + "（證交所可能暫時限制，稍後重新整理）";
     setDot("err", String(e.message || e));
@@ -607,6 +670,8 @@ async function start(){
           await compute(); closedDone = true; setDot("", "已收盤");
         }else if(n.hm > 14*60+30) holiday = n.ymd;   // 14:30 還沒有今天的日線 → 休市
       }
+      // v1.3.0：三大法人約 15:00 公布；15:30 後最新一天還沒有就每 10 分鐘再試
+      if(closedDone && n.hm >= 15*60+30 && !INST[HIST[HIST.length-1].d] && Date.now() - instTry > 600000) await refreshInst();
     }catch(e){ setDot("warn", "更新失敗：" + (e.message || e)); }
   }, 10000);
 }
