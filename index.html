@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.1.0</title>
+<title>台股趨勢儀表板 v1.2.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,15 @@ td:first-child,th:first-child{text-align:left}
       <div class="wait" id="wait">載入中…</div>
     </div>
   </section>
+  <!-- v1.2.0：00631L 日線，跟上面那張同步縮放；分割前價格已換算成分割後單位 -->
+  <section class="chart">
+    <div class="ph"><b>00631L 台灣 50 正 2 日線</b><span>2026/03 分割前已換算</span><span style="margin-left:auto">▲買進 ▼賣出</span></div>
+    <div class="cw" id="cw2">
+      <canvas id="cv2"></canvas>
+      <div class="tip" id="tip2" style="left:5px"></div>
+      <div class="wait" id="wait2">載入正 2…</div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -153,7 +162,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -209,15 +218,43 @@ async function loadIndex(prog){
   }
   return B;
 }
-const ETFM = new Map();   // 'YYYYMM' → {日期: 收盤}
+const ETFM = new Map();   // 'YYYYMM' → {日期: {o,h,l,c}}（v1.2.0 起留開高低收，畫正 2 的 K 線）
 async function etfMonth(ymd){
   const k = ymd.slice(0,4) + ymd.slice(5,7), t = tpeNow(), cur = k === mkey(t.y, t.m);
   if(ETFM.has(k) && !cur) return ETFM.get(k);
   const j = await twse(`/afterTrading/STOCK_DAY?response=json&stockNo=${ETF}&date=${k}01`, cur ? null : `tst-etf-${k}`);
-  const m = {}; for(const r of (j.data || [])) m[roc(r[0])] = num(r[6]);
+  const m = {};
+  for(const r of (j.data || [])){ const c = num(r[6]); if(c > 0) m[roc(r[0])] = {o:num(r[3]), h:num(r[4]), l:num(r[5]), c}; }
   ETFM.set(k, m); return m;
 }
-async function etfClose(ymd){ return (await etfMonth(ymd))[ymd] ?? null; }
+async function etfClose(ymd){ return (await etfMonth(ymd))[ymd]?.c ?? null; }
+/* v1.2.0：正 2 日 K，跟 BARS 逐根對齊（停牌日是 null）。
+   分割前的價格換算成分割後的單位：分割那天的實際比值 ÷ 指數同期 ×2 的理論比值＝分割倍數，之前全部乘上去。
+   盤中那根用「昨收 ×（1＋2×指數相對昨收的漲跌）」估算開高低收。 */
+async function etfBars(){
+  const m = {}, seen = new Set();
+  for(const b of BARS){ const k = b.d.slice(0,7); if(!seen.has(k)){ seen.add(k); Object.assign(m, await etfMonth(b.d)); } }
+  const EB = BARS.map(b => m[b.d] ? {...m[b.d], d:b.d} : null);
+  let pi = -1;
+  for(let i = 0; i < EB.length; i++){
+    if(!EB[i]) continue;
+    if(pi >= 0){
+      const r = EB[i].c / EB[pi].c;
+      if(!(r > .5 && r < 2)){
+        const f = r / (1 + 2 * (BARS[i].c / BARS[pi].c - 1));
+        for(let j = 0; j < i; j++) if(EB[j]) for(const k of "ohlc") EB[j][k] *= f;
+      }
+    }
+    pi = i;
+  }
+  const L = BARS.length - 1;
+  if(BARS[L].live && !EB[L]){
+    let p = L - 1; while(p >= 0 && !EB[p]) p--;
+    if(p >= 0){ const pc = EB[p].c, ic = BARS[p].c, g = v => pc * (1 + 2 * (v / ic - 1));
+      EB[L] = {d:BARS[L].d, o:g(BARS[L].o), h:g(BARS[L].h), l:g(BARS[L].l), c:g(BARS[L].c), live:true}; }
+  }
+  return EB;
+}
 /* v1.0.3：正 2 在 2026/03/24→03/31 做過約 1 拆 23，收盤價直接相除會錯。
    從 a 到 b 逐日串收盤價，單日變動超過一倍（真實行情一天最多約 ±20%）就當成分割，
    那一段改用「加權指數同期漲跌 ×2」接起來。回傳 a 收盤到 b 收盤的報酬。 */
@@ -229,7 +266,7 @@ async function etfRet(a, b){
   const idx = {}; for(const x of BARS) idx[x.d] = x.c;
   let g = 1;
   for(let i = 1; i < ks.length; i++){
-    const r = days[ks[i]] / days[ks[i-1]];
+    const r = days[ks[i]].c / days[ks[i-1]].c;
     if(r > .5 && r < 2) g *= r;
     else if(idx[ks[i]] && idx[ks[i-1]]) g *= 1 + 2 * (idx[ks[i]] / idx[ks[i-1]] - 1);
     else return null;
@@ -239,7 +276,7 @@ async function etfRet(a, b){
 async function etfPrevClose(ymd){   // ymd 之前最近一個交易日的收盤
   let m = await etfMonth(ymd), ks = Object.keys(m).filter(d => d < ymd).sort();
   if(!ks.length){ const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(0); m = await etfMonth(d.toISOString().slice(0,10)); ks = Object.keys(m).filter(d => d < ymd).sort(); }
-  return ks.length ? m[ks[ks.length-1]] : null;
+  return ks.length ? m[ks[ks.length-1]].c : null;
 }
 // 盤中每 5 秒指數 → 今天這根 K
 async function loadToday(ymd){
@@ -345,6 +382,9 @@ async function compute(){
       : `今日暫定：照目前指數收盤，維持「${hold ? "持有正 2" : "空手"}」`;
   }else td.hidden = true;
   draw();
+  // v1.2.0：正 2 日 K（第一次要抓 18 個月，之後只抓當月）
+  try{ EB = await etfBars(); $("wait2").hidden = true; drawOne(CH[1]); }
+  catch(e){ $("wait2").textContent = "正 2 載入失敗：" + (e.message || e); }
   // 正 2 價格（要再抓證交所，放在畫完圖之後）
   try{
     let etfNow = null, tag = "";
@@ -394,26 +434,35 @@ async function buildLog(){
 }
 
 /* ============ 圖 ============ */
-const cv = $("cv"), ctx = cv.getContext("2d");
+/* v1.2.0：兩張圖（加權指數、00631L）共用同一個縮放範圍；指數那張多畫濾網線 */
+let EB = null;   // 正 2 日 K，跟 BARS 對齊
+const CH = [
+  {cv:$("cv"),  box:"cw",  tip:"tip",  S:() => BARS, filt:true,  dec:0},
+  {cv:$("cv2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
+];
+CH.forEach(c => c.ctx = c.cv.getContext("2d"));
 let VIEW = null;
-function draw(){
-  const box = $("cw").getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+function draw(){ for(const c of CH) drawOne(c); }
+function drawOne(C){
+  const cv = C.cv, ctx = C.ctx, D = C.S();
+  const box = $(C.box).getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   if(!box.width) return;
   cv.width = box.width * dpr; cv.height = box.height * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = box.width, H = box.height, RA = 50, BA = 16;
   ctx.clearRect(0, 0, W, H);
-  if(!R) return;
+  if(!R || !D) return;
   const total = BARS.length - R.warm;   // 暖機段不畫
   const show = Math.max(20, Math.min(ZOOM.span, total));
   const off = Math.max(0, Math.min(ZOOM.off, total - show));
   ZOOM.span = show; ZOOM.off = off;
   const e = BARS.length - off, s = e - show;
   let lo = Infinity, hi = -Infinity;
-  for(let i = s; i < e; i++){ lo = Math.min(lo, BARS[i].l, R.filt[i] ?? Infinity); hi = Math.max(hi, BARS[i].h, R.filt[i] ?? -Infinity); }
+  for(let i = s; i < e; i++){ if(!D[i]) continue; lo = Math.min(lo, D[i].l); hi = Math.max(hi, D[i].h);
+    if(C.filt && R.filt[i] != null){ lo = Math.min(lo, R.filt[i]); hi = Math.max(hi, R.filt[i]); } }
   const pad = (hi - lo) * .06; lo -= pad; hi += pad;
   const cw = (W - RA) / show, X = i => (i - s + .5) * cw, Y = v => (H - BA) * (1 - (v - lo) / (hi - lo));
-  VIEW = {s, e, cw, X, Y, W, H, RA};
+  C.view = VIEW = {s, e, cw, X, Y, W, H, RA};
   // 持有期間紅底
   ctx.fillStyle = "rgba(255,59,59,.07)";
   for(let i = s; i < e; i++){   // 連續的持有段一次畫完，逐根畫會有縫
@@ -426,11 +475,12 @@ function draw(){
   const step = niceStep((hi - lo) / 5);
   for(let v = Math.ceil(lo / step) * step; v < hi; v += step){
     const y = Y(v); ctx.strokeStyle = "#1a1f2b"; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W - RA, y); ctx.stroke();
-    ctx.fillStyle = "#6b7387"; ctx.fillText(v.toLocaleString("zh-TW"), W - 3, y);
+    ctx.fillStyle = "#6b7387"; ctx.fillText(v.toLocaleString("zh-TW", {maximumFractionDigits: step < 1 ? 1 : 0}), W - 3, y);
   }
   // K 棒：v1.0.2 使用者要求改灰色（v1.0.1 是淺灰，漲跌同色），讓濾網線與進出記號比較顯眼
   for(let i = s; i < e; i++){
-    const b = BARS[i], x = X(i), col = "#7d8494";
+    const b = D[i]; if(!b) continue;
+    const x = X(i), col = "#7d8494";
     ctx.strokeStyle = col; ctx.fillStyle = col;
     ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
     const y1 = Y(Math.max(b.o, b.c)), y2 = Y(Math.min(b.o, b.c)), bw = Math.max(1, cw * .62);
@@ -440,7 +490,7 @@ function draw(){
   }
   // 濾網線（線色＝濾網方向）
   ctx.lineWidth = 2;
-  for(let i = Math.max(s, 1); i < e; i++){
+  for(let i = Math.max(s, 1); C.filt && i < e; i++){
     if(R.filt[i] == null || R.filt[i-1] == null) continue;
     ctx.strokeStyle = R.fcol[i] > 0 ? "#ff3b3b" : R.fcol[i] < 0 ? "#2ecc71" : "#7a8494";
     ctx.beginPath(); ctx.moveTo(X(i-1), Y(R.filt[i-1])); ctx.lineTo(X(i), Y(R.filt[i])); ctx.stroke();
@@ -448,8 +498,8 @@ function draw(){
   ctx.lineWidth = 1;
   // 進出記號
   for(const g of R.sigs){
-    if(g.i < s || g.i >= e) continue;
-    const b = BARS[g.i], x = X(g.i), z = Math.max(5, Math.min(8, cw * .6));
+    if(g.i < s || g.i >= e || !D[g.i]) continue;
+    const b = D[g.i], x = X(g.i), z = Math.max(5, Math.min(8, cw * .6));
     ctx.fillStyle = g.d > 0 ? "#ff3b3b" : "#2ecc71"; ctx.beginPath();
     if(g.d > 0){ const y = Y(b.l) + 6; ctx.moveTo(x, y); ctx.lineTo(x - z, y + z*1.5); ctx.lineTo(x + z, y + z*1.5); }
     else{ const y = Y(b.h) - 6; ctx.moveTo(x, y); ctx.lineTo(x - z, y - z*1.5); ctx.lineTo(x + z, y - z*1.5); }
@@ -469,29 +519,38 @@ function draw(){
 }
 function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
 
-// 提示框、拖曳、滾輪、雙指
+// 提示框、拖曳、滾輪、雙指（兩張圖都能操作，一起動；提示框兩張同時顯示同一天）
 let drag = null;
-function idxAt(px){ if(!VIEW) return null; const i = VIEW.s + Math.floor(px / VIEW.cw); return i >= VIEW.s && i < VIEW.e ? i : null; }
 function tipAt(px){
-  const i = idxAt(px); if(i == null){ $("tip").textContent = ""; return; }
-  const b = BARS[i], ch = i ? b.c / BARS[i-1].c - 1 : 0;
-  $("tip").textContent = `${b.d.replace(/-/g,"/")}${b.live ? " 盤中" : ""}  開 ${fmt(b.o,0)} 高 ${fmt(b.h,0)} 低 ${fmt(b.l,0)} 收 ${fmt(b.c,0)} ${pct(ch)}  濾網 ${fmt(R.filt[i],0)}`;
+  const V = CH[0].view; if(!V){ return; }
+  const i = V.s + Math.floor(px / V.cw), ok = i >= V.s && i < V.e;
+  for(const C of CH){
+    const D = C.S(), b = ok && D ? D[i] : null;
+    if(!b){ $(C.tip).textContent = ""; continue; }
+    let p = i - 1; while(p >= 0 && !D[p]) p--;
+    const ch = p >= 0 ? b.c / D[p].c - 1 : 0, f = v => fmt(v, C.dec);
+    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (C.filt ? " 盤中" : " 盤中估算") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
+      (C.filt ? `  濾網 ${fmt(R.filt[i],0)}` : "");
+  }
 }
+const clearTip = () => { if(!drag) for(const C of CH) $(C.tip).textContent = ""; };
 const ptrs = new Map(); let pinch = null;
-cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e.offsetX);
-  if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = {d:Math.abs(a - b), span:ZOOM.span}; drag = null; }
-  else drag = {x:e.offsetX, off:ZOOM.off}; tipAt(e.offsetX); });
-cv.addEventListener("pointermove", e => {
-  if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
-  if(pinch && ptrs.size === 2){ const [a, b] = [...ptrs.values()]; const d = Math.abs(a - b);
-    if(d > 10){ ZOOM.span = Math.round(pinch.span * pinch.d / d); draw(); } return; }
-  if(drag && VIEW){ ZOOM.off = Math.round(drag.off + (e.offsetX - drag.x) / VIEW.cw); draw(); }
-  tipAt(e.offsetX); });
-const up = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch = null; drag = null; };
-cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
-cv.addEventListener("pointerleave", () => { if(!drag) $("tip").textContent = ""; });
-cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
-cv.addEventListener("dblclick", () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); });
+for(const {cv} of CH){
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e.offsetX);
+    if(ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = {d:Math.abs(a - b), span:ZOOM.span}; drag = null; }
+    else drag = {x:e.offsetX, off:ZOOM.off}; tipAt(e.offsetX); });
+  cv.addEventListener("pointermove", e => {
+    if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.offsetX);
+    if(pinch && ptrs.size === 2){ const [a, b] = [...ptrs.values()]; const d = Math.abs(a - b);
+      if(d > 10){ ZOOM.span = Math.round(pinch.span * pinch.d / d); draw(); } return; }
+    if(drag && VIEW){ ZOOM.off = Math.round(drag.off + (e.offsetX - drag.x) / VIEW.cw); draw(); }
+    tipAt(e.offsetX); });
+  const up = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch = null; drag = null; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("pointerleave", clearTip);
+  cv.addEventListener("wheel", e => { e.preventDefault(); ZOOM.span = Math.round(ZOOM.span * (e.deltaY > 0 ? 1.15 : 1/1.15)); draw(); }, {passive:false});
+  cv.addEventListener("dblclick", () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); });
+}
 $("zIn").onclick = () => { ZOOM.span = Math.round(ZOOM.span / 1.4); draw(); };
 $("zOut").onclick = () => { ZOOM.span = Math.round(ZOOM.span * 1.4); draw(); };
 $("zAll").onclick = () => { ZOOM.span = 1e9; ZOOM.off = 0; draw(); };
