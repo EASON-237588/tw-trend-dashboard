@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.7.0</title>
+<title>台股趨勢儀表板 v1.7.1</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,7 +59,15 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6p
   border-radius:8px;padding:5px 7px 6px}
 .ph{flex:none;display:flex;align-items:center;gap:6px;overflow:hidden;font-size:12px;color:var(--mute);margin-bottom:4px;white-space:nowrap}
 .ph b{font-size:13px;color:var(--warn)}
-@media (max-width:400px){ .ph > span:nth-child(2){display:none} }   /* 手機太窄：藏標題旁的灰色說明，留給獲利比例與狀態 */
+.ph b.pv{font-size:12px;color:var(--text)}
+.ph .pf{margin-left:auto;color:var(--mute)}
+.ph .pf:empty + .st{margin-left:auto}
+/* 手機太窄：績效換到第二行，第一行留價格、商品名稱、狀態 */
+@media (max-width:400px){ .ph{flex-wrap:wrap;row-gap:1px} .ph .st{margin-left:auto} .ph .pf{order:3;flex-basis:100%;margin-left:0;text-align:right} }
+/* 商品名稱前的價格：持有紅底白字、空手綠底白字 */
+.pxb{flex:none;font-size:13px;font-weight:700;color:#fff;border-radius:4px;padding:0 6px;line-height:18px;font-variant-numeric:tabular-nums}
+.pxb:empty{display:none}
+.pxb.long{background:#e5352f}.pxb.flat{background:#1e9e57}   /* 手機太窄：藏標題旁的灰色說明，留給獲利比例與狀態 */
 .cw{position:relative;flex:1;min-height:0;border-radius:5px;overflow:hidden;background:#0e121b}
 canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 /* v1.5.0：十字游標畫在疊加的透明畫布，移動時只重畫這層 */
@@ -115,7 +123,7 @@ td:first-child,th:first-child{text-align:left}
   <div class="today" id="today" hidden></div>
   <!-- v1.6.0 使用者要求：正 2 移到上面、加權移到下面；外資台指期那格刪除 -->
   <section class="chart">
-    <div class="ph"><b>00631L 正 2 日線</b><span>分割前已換算</span><span id="sh1" style="margin-left:auto"></span></div>
+    <div class="ph"><span class="pxb" id="px1"></span><b>00631L 正 2</b><span class="pf" id="pf1"></span><span class="st" id="sh1"></span></div>
     <div class="cw" id="cw2">
       <canvas id="cv2"></canvas><canvas class="ov" id="ov2"></canvas>
       <div class="zoom"><button id="zIn">＋</button><button id="zOut">－</button><button id="zAll">⤢</button></div>
@@ -124,7 +132,7 @@ td:first-child,th:first-child{text-align:left}
     </div>
   </section>
   <section class="chart">
-    <div class="ph"><b>加權指數 日線</b><span>RF 15・4</span><span id="sh2" style="margin-left:auto"></span></div>
+    <div class="ph"><span class="pxb" id="px2"></span><b>加權指數</b><span class="pf" id="pf2"></span><span class="st" id="sh2"></span></div>
     <div class="cw" id="cw">
       <canvas id="cv"></canvas><canvas class="ov" id="ov"></canvas>
       <div class="tip" id="tip" style="left:5px"></div>
@@ -133,7 +141,7 @@ td:first-child,th:first-child{text-align:left}
   </section>
   <!-- v1.7.0：台積電、聯發科日線，K 棒依自身 Range Filter 15/4 的多空上色（不畫濾網線與進出點；只當看盤參考，回測個股自身濾網全輸抱著） -->
   <section class="chart">
-    <div class="ph"><b>2330 台積電 日線</b><span>自身訊號</span><span id="sh3" style="margin-left:auto"></span></div>
+    <div class="ph"><span class="pxb" id="px3"></span><b>2330 台積電</b><span class="pf" id="pf3"></span><span class="st" id="sh3"></span></div>
     <div class="cw" id="cw3">
       <canvas id="cv3"></canvas><canvas class="ov" id="ov3"></canvas>
       <div class="tip" id="tip3" style="left:5px"></div>
@@ -141,7 +149,7 @@ td:first-child,th:first-child{text-align:left}
     </div>
   </section>
   <section class="chart">
-    <div class="ph"><b>2454 聯發科 日線</b><span>自身訊號</span><span id="sh4" style="margin-left:auto"></span></div>
+    <div class="ph"><span class="pxb" id="px4"></span><b>2454 聯發科</b><span class="pf" id="pf4"></span><span class="st" id="sh4"></span></div>
     <div class="cw" id="cw4">
       <canvas id="cv4"></canvas><canvas class="ov" id="ov4"></canvas>
       <div class="tip" id="tip4" style="left:5px"></div>
@@ -186,9 +194,9 @@ td:first-child,th:first-child{text-align:left}
       <li><b>什麼時候動作</b>：訊號以收盤價為準。盤中顯示的「今日暫定」會隨指數變動，<b>13:25 前後</b>看一次，跟收盤集合競價一起成交。</li>
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
-      <li><b>資料來源</b>：圖表全部直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交（獲利比例另用 FinMind）。正 2 盤中價證交所沒開放給網頁讀，用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>。</li>
-      <li><b>畫面（v1.7.0）</b>：四格依序是正 2、加權指數、台積電、聯發科。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考，回測個股用自身濾網報酬都輸抱著）。右上角「持有／空手 MM/DD 起」是目前狀態。</li>
-      <li><b>12年獲利</b>：四格統一從 2014/10/31（正 2 上市）起算，賺錢的交易筆數÷已賣出的筆數，每筆是轉持有那天收盤買、轉空手那天收盤賣，未扣成本，還沒賣的那筆不算。只看賺賠筆數不看金額。資料來自 FinMind（一次抓多年日線，存在瀏覽器裡，之後只補新的）；台積電、聯發科用原始股價，早年除權可能讓個別交易被算成賠。</li>
+      <li><b>資料來源</b>：圖表直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交。盤中正 2、台積電、聯發科的即時價，證交所不開放網頁直接讀，透過自己的 Cloudflare 轉接站代抓；轉接站連不上時，正 2 改用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>，個股只顯示最近收盤。12 年績效另用 FinMind。</li>
+      <li><b>畫面（v1.7.1）</b>：四格依序是正 2、加權指數、台積電、聯發科。商品名稱前的方塊是價格（盤中即時，持有紅底、空手綠底）。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考）。右上角「持有／空手 MM/DD 起」是目前狀態，看收盤確定的那根。</li>
+      <li><b>12年績效</b>：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「策略只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。策略贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
       <li><b>盤中翻轉警告</b>：盤中照目前指數試算，若收盤會翻轉，畫面中央跳出警告（同一天同方向按「知道了」後不重跳）。只有網頁開著才會跳，沒有聲音。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
@@ -197,7 +205,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.7.0";
+const VERSION = "v1.7.1";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -279,7 +287,22 @@ async function stkMonth(code, ymd){
 async function stkBars(code){
   const m = {}, seen = new Set();
   for(const b of BARS){ const k = b.d.slice(0,7); if(!seen.has(k)){ seen.add(k); Object.assign(m, await stkMonth(code, b.d)); } }
-  return BARS.map(b => m[b.d] ? {...m[b.d], d:b.d} : null);
+  const out = BARS.map(b => m[b.d] ? {...m[b.d], d:b.d} : null), L = BARS.length - 1;
+  if(BARS[L].live && !out[L]) out[L] = qBar(QT && QT[code], BARS[L].d);   // 盤中即時 K
+  return out;
+}
+/* v1.7.1：個股盤中價。證交所即時報價（mis）不開放網頁跨網域讀取，透過自己的 Cloudflare 轉接站（worker/worker.js）代抓。
+   盤中每次重算時抓一次正 2、台積電、聯發科；轉接站連不上時正 2 退回指數估算、個股就沒有今日 K。 */
+const QUOTE_URL = "https://tw-quote.eason-237588.workers.dev/?s=";
+let QT = null;
+async function loadQuote(){
+  const r = await fetch(QUOTE_URL + [ETF, ...STK.map(x => x.code)].join(","), {cache:"no-store"});
+  if(!r.ok) throw new Error(`轉接站 HTTP ${r.status}`);
+  return r.json();
+}
+function qBar(q, d){   // 報價 → 今日 K；日期不是今天（例如盤前還是昨天的報價）就不用
+  if(!q || !q.z || q.d !== d.replace(/-/g, "")) return null;
+  return {d, o:q.o ?? q.z, h:Math.max(q.h ?? q.z, q.z), l:Math.min(q.l ?? q.z, q.z), c:q.z, live:true};
 }
 let SB = [null, null], SR = [null, null];
 /* 個股自身的 Range Filter：跳過停牌日（null）壓成連續陣列算，再放回 BARS 的位置；停牌日沿用前一天部位 */
@@ -296,19 +319,20 @@ function stkRF(D){
   return {pos, filt, fcol, sigs: r.sigs.map(g => ({i: ix[g.i], d: g.d}))};
 }
 /* 各格標題右邊的狀態：「持有／空手 MM/DD 起」，L＝最後一根已確定的 K */
-/* 獲利交易比例：只做多，轉持有那根收盤買、轉空手那根收盤賣；從 from 那根算起（當時已持有就以那天收盤起算），還沒賣的那筆不算 */
-function winStat(pos, D, from, L){
-  let last = D[from] ? D[from].c : null, ent = pos[from] === 1 ? last : null, n = 0, w = 0;
+/* 12 年績效：策略＝照訊號只做多（持有時跟著漲跌、空手拿現金），複利滾到最後一根（含還沒賣的那筆）；
+   抱著＝from 那根收盤買進後不賣。都用收盤價、未扣成本、未含配息。 */
+function perfStat(pos, D, from, L){
+  let eq = 1, prev = D[from] ? D[from].c : null;
   for(let i = from + 1; i <= L; i++){
-    if(D[i]) last = D[i].c;
-    if(pos[i] === 1 && pos[i-1] !== 1) ent = last;
-    if(pos[i] !== 1 && pos[i-1] === 1 && ent != null){ n++; if(last > ent) w++; ent = null; }
+    if(!D[i]) continue;
+    if(pos[i-1] === 1 && prev) eq *= D[i].c / prev;
+    prev = D[i].c;
   }
-  return {n, w};
+  return {s: eq - 1, b: prev / D[from].c - 1};
 }
-/* 獲利比例：四格統一從正 2 上市日（2014/10/31，約 12 年）算起。證交所只能逐月抓，改用 FinMind 一檔一次抓多年日線，
+/* 12 年績效：四格統一從正 2 上市日（2014/10/31）算起。證交所只能逐月抓，改用 FinMind 一檔一次抓多年日線，
    從 FM_FROM 開始抓（多一年多給濾網暖機），精簡後存 localStorage，之後只補抓存檔最後一天以後的。
-   只拿來算獲利比例，圖表仍是證交所 18 個月。 */
+   只拿來算績效，圖表仍是證交所 18 個月。 */
 const FM_FROM = "2013-01-01", STAT_FROM = "2014-10-31";
 let STATS = {}, HEADS = {};
 async function fmDaily(id){
@@ -326,7 +350,7 @@ async function fmDaily(id){
   return rows.map(x => ({d:x[0], o:x[1], h:x[2], l:x[3], c:x[4]}));
 }
 const yrs = (a, b) => Math.round((new Date(b) - new Date(a)) / 31557600000);
-function stat(id, pos, D, from, L){ STATS[id] = {...winStat(pos, D, from, L), from:D[from].d, to:D[L].d}; }
+function stat(id, pos, D, from, L){ STATS[id] = {...perfStat(pos, D, from, L), from:D[from].d, to:D[L].d}; }
 async function loadStats(){
   const [B, Eraw, ...SS] = await Promise.all(["TAIEX", ETF, ...STK.map(x => x.code)].map(fmDaily));
   if(B.length < 200) throw new Error("FinMind 加權指數資料不足");
@@ -340,17 +364,31 @@ async function loadStats(){
   SS.forEach((S, k) => { if(S.length > 200){ const r = calcRF(S, P); stat("sh" + (k+3), r.pos, S, at(S, r.warm), S.length - 1); } });
   for(const id in HEADS) posHead(id, ...HEADS[id]);
 }
-function posHead(id, pos, L){
-  HEADS[id] = [pos, L];
-  const h = pos[L] === 1; let a = L; while(a > 0 && pos[a-1] === pos[L]) a--;
+function posHead(id, pos, L, D){
+  HEADS[id] = [pos, L, D];
+  const h = pos[L] === 1;
+  // 商品名稱前的價格：最後一根有資料的 K（盤中是即時價，轉接站連不上時正 2 用估算）
+  if(D){
+    let q = D.length - 1; while(q >= 0 && !D[q]) q--;
+    const px = $(id.replace("sh", "px"));
+    if(q >= 0){
+      px.textContent = fmt(D[q].c, id === "sh2" ? 2 : D[q].c >= 1000 ? 0 : 2);
+      px.className = "pxb " + (h ? "long" : "flat");
+      px.title = D[q].live ? (D[q].est ? "盤中估算" : "盤中即時") : `${md(D[q].d)} 收盤`;
+    }
+  }
+  let a = L; while(a > 0 && pos[a-1] === pos[L]) a--;
   const st = STATS[id];
-  $(id).innerHTML = (st && st.n ? `<span style="color:var(--mute)" title="${st.from.replace(/-/g,"/")}～${st.to.replace(/-/g,"/")} 進場的交易，未扣成本">${yrs(st.from, st.to)}年獲利 ${st.w}/${st.n}・<b style="color:var(--text);font-size:12px">${Math.round(st.w / st.n * 100)}%</b></span>　` : "") + `<span style="color:${h ? "#ff3b3b" : "#2ecc71"};font-weight:700">${h ? "持有" : "空手"}</span>` +
+  const pc = v => (v >= 0 ? "+" : "") + Math.round(v * 100).toLocaleString("zh-TW") + "%", pf = $(id.replace("sh", "pf"));
+  pf.title = st ? `${st.from.replace(/-/g,"/")}～${st.to.replace(/-/g,"/")}，只做多、收盤成交、未扣成本、未含配息` : "";
+  pf.innerHTML = st ? `${yrs(st.from, st.to)}年 策略只做多 <b class="pv" style="color:${st.s >= st.b ? "#ff3b3b" : "var(--text)"}">${pc(st.s)}</b>・抱著 <b class="pv">${pc(st.b)}</b>` : "";
+  $(id).innerHTML = `<span style="color:${h ? "#ff3b3b" : "#2ecc71"};font-weight:700">${h ? "持有" : "空手"}</span>` +
     (a > R.warm ? ` <span style="color:var(--warn)">${md(BARS[a].d)} 起</span>` : "");
 }
 function stkHead(k){
   const r = SR[k], D = SB[k]; if(!r) return;
-  let L = D.length - 1; while(L >= 0 && !D[L]) L--;
-  posHead("sh" + (k+3), r.pos, L);
+  let L = D.length - 1; while(L >= 0 && (!D[L] || D[L].live)) L--;   // 狀態看收盤確定的那根，盤中即時 K 只給價格
+  posHead("sh" + (k+3), r.pos, L, D);
 }
 async function etfClose(ymd){ return (await etfMonth(ymd))[ymd]?.c ?? null; }
 /* v1.2.0：正 2 日 K，跟 BARS 逐根對齊（停牌日是 null）。
@@ -382,10 +420,11 @@ async function etfBars(){
   const EB = BARS.map(b => m[b.d] ? {...m[b.d], d:b.d} : null);
   SPL = splitAdj(EB, BARS);
   const L = BARS.length - 1;
+  if(BARS[L].live && !EB[L]) EB[L] = qBar(QT && QT[ETF], BARS[L].d);   // v1.7.1：盤中先用轉接站的真實成交價
   if(BARS[L].live && !EB[L]){
     let p = L - 1; while(p >= 0 && !EB[p]) p--;
     if(p >= 0){ const pc = EB[p].c, ic = BARS[p].c, g = v => pc * (1 + 2 * (v / ic - 1));
-      EB[L] = {d:BARS[L].d, o:g(BARS[L].o), h:g(BARS[L].h), l:g(BARS[L].l), c:g(BARS[L].c), live:true}; }
+      EB[L] = {d:BARS[L].d, o:g(BARS[L].o), h:g(BARS[L].h), l:g(BARS[L].l), c:g(BARS[L].c), live:true, est:true}; }
   }
   return EB;
 }
@@ -497,7 +536,7 @@ async function compute(){
   const live = !!(BARS[last] && BARS[last].live);
   const ci = live ? last - 1 : last;            // 最後一根「已確定」的 K
   const hold = R.pos[ci] === 1;
-  posHead("sh2", R.pos, ci);
+  posHead("sh2", R.pos, ci, BARS);
   // 今日暫定：用盤中這根 K 試算
   const td = $("today");
   if(live){
@@ -517,8 +556,9 @@ async function compute(){
     if(!flip){ $("flipAlert").hidden = true; if(FLIPOK && FLIPOK.startsWith(BARS[last].d)) FLIPOK = null; }
   }else{ td.hidden = true; $("flipAlert").hidden = true; }
   draw();
+  QT = live ? await loadQuote().catch(e => { console.warn("即時報價", e); return null; }) : null;
   // v1.2.0：正 2 日 K（第一次要抓 18 個月，之後只抓當月）
-  try{ EB = await etfBars(); posHead("sh1", R.pos, ci); $("wait2").hidden = true; drawOne(CH[1]); }
+  try{ EB = await etfBars(); posHead("sh1", R.pos, ci, EB); $("wait2").hidden = true; drawOne(CH[1]); }
   catch(e){ $("wait2").textContent = "正 2 載入失敗：" + (e.message || e); }
   for(let k = 0; k < STK.length; k++){
     try{ SB[k] = await stkBars(STK[k].code); SR[k] = stkRF(SB[k]); stkHead(k); $("wait" + (k+3)).hidden = true; drawOne(CH[2+k]); }
@@ -671,7 +711,7 @@ function tipAt(px){
     if(!b){ $(C.tip).textContent = ""; continue; }
     let p = i - 1; while(p >= 0 && !D[p]) p--;
     const ch = p >= 0 ? b.c / D[p].c - 1 : 0, f = v => fmt(v, C.dec);
-    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (C.filt ? " 盤中" : " 盤中估算") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
+    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (b.est ? " 盤中估算" : " 盤中") : ""}  開 ${f(b.o)} 高 ${f(b.h)} 低 ${f(b.l)} 收 ${f(b.c)} ${pct(ch)}` +
       "";
   }
 }
@@ -735,7 +775,7 @@ async function start(){
     $("wait").hidden = true;
     await compute();
     setDot(inSession(n) ? "live" : "", inSession(n) ? "盤中更新中" : "已收盤");
-    loadStats().catch(e => console.warn("5 年獲利統計", e));   // 不擋畫面，抓到再補上標題
+    loadStats().catch(e => console.warn("12 年績效", e));   // 不擋畫面，抓到再補上標題
   }catch(e){
     lb.hidden = true; $("wait").textContent = "載入失敗：" + (e.message || e) + "（證交所可能暫時限制，稍後重新整理）";
     setDot("err", String(e.message || e));

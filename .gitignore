@@ -3,3 +3,4 @@ __pycache__/
 報告/
 回測/*.json
 回測/*.pkl
+worker/.wrangler/
