@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.7.3</title>
+<title>台股趨勢儀表板 v1.7.4</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -201,7 +201,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.7.3";
+const VERSION = "v1.7.4";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -773,7 +773,7 @@ async function start(){
     setDot("err", String(e.message || e));
     return;
   }
-  let closedDone = false, holiday = null;   // holiday：判定休市的日期，當天不再抓
+  let closedDone = false, holiday = null, empty = 0;   // holiday：判定休市的日期，當天不再抓；empty：盤中連續抓到空資料的次數
   setInterval(async () => {
     if(document.hidden) return;
     const n = tpeNow();
@@ -781,8 +781,10 @@ async function start(){
     try{
       if(inSession(n) && !HIST.some(b => b.d === n.ymd)){
         const t = await loadToday(n.ymd);
-        if(t){ TODAY = t; await compute(); setDot("live", "盤中更新中"); }
-        else if(n.hm >= 9*60+10){ holiday = n.ymd; setDot("", "今天休市"); }   // v1.2.1：平日國定假日
+        if(t){ empty = 0; TODAY = t; await compute(); setDot("live", "盤中更新中"); }
+        // v1.2.1：平日國定假日；v1.7.4：證交所偶爾回空資料，連續 6 次（約 1 分鐘）且過 9:30 才當休市，之前一直重試
+        else if(++empty >= 6 && n.hm >= 9*60+30){ holiday = n.ymd; setDot("", "今天休市"); }
+        else setDot("warn", `盤中資料暫時抓不到，重試中（${empty}）`);
         closedDone = false;
       }else if(!closedDone && n.hm > 13*60+40 && !["Sat","Sun"].includes(n.wd)){
         // 收盤後補當月日線，確定今天這根
