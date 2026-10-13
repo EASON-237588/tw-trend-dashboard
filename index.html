@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.7.4</title>
+<title>台股趨勢儀表板 v1.8.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,11 +59,10 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;padding:0 6p
   border-radius:8px;padding:5px 7px 6px}
 .ph{flex:none;display:flex;align-items:center;gap:6px;overflow:hidden;font-size:12px;color:var(--mute);margin-bottom:4px;white-space:nowrap}
 .ph b{font-size:13px;color:var(--warn)}
-.ph b.pv{font-size:12px;color:var(--text)}
-.ph .pf{margin-left:auto;color:var(--mute)}
-.ph .pf:empty + .st{margin-left:auto}
-/* 手機太窄：績效換到第二行，第一行留價格、商品名稱、狀態 */
-@media (max-width:400px){ .ph{flex-wrap:wrap;row-gap:1px} .ph .st{margin-left:auto} .ph .pf{order:3;flex-basis:100%;margin-left:0;text-align:right} }
+/* v1.8.0：12 年績效移到交易明細（使用者要求），標題列改成 價格、漲跌、商品名稱、狀態 */
+.ph .st{margin-left:auto}
+.chg{flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.chg:empty{display:none}
 /* 商品名稱前的價格：持有紅底白字、空手綠底白字 */
 .pxb{flex:none;font-size:13px;font-weight:700;color:#fff;border-radius:4px;padding:0 6px;line-height:18px;font-variant-numeric:tabular-nums}
 .pxb:empty{display:none}
@@ -102,6 +101,20 @@ table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:ta
 th,td{padding:3px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:400}
 td:first-child,th:first-child{text-align:left}
+/* v1.8.0 交易明細（照指數趨勢儀表板 v1.7.0） */
+.tsum{color:var(--text);font-size:12px;line-height:1.6;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.tsum .tot{font-size:24px;font-weight:700;line-height:1.35}
+.tnote{font-size:11px;color:var(--mute);line-height:1.5;margin:2px 0 6px}
+.tnote.warn{color:var(--warn)}
+.tt{width:100%;border-collapse:collapse;font-size:11.5px;line-height:1.35;color:var(--text);font-variant-numeric:tabular-nums}
+.tt th{font-weight:400;color:var(--mute);text-align:right;padding:3px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tt td{text-align:right;padding:4px 3px;border-bottom:1px solid #1b2130;white-space:nowrap;vertical-align:top}
+.tt th:first-child,.tt td:first-child{text-align:center}
+.tt th:nth-child(2),.tt td:nth-child(2),.tt th:nth-child(3),.tt td:nth-child(3){text-align:left}
+.tt small{color:var(--mute);font-size:10.5px}
+.tt tr.live td:first-child{color:var(--tag)}
+.tt tr.hold td{background:rgba(34,199,232,.07)}
+.sheet h3{margin:12px 0 2px;font-size:13px;color:var(--text)}
 </style>
 </head>
 <body>
@@ -109,7 +122,7 @@ td:first-child,th:first-child{text-align:left}
 <header>
   <h1>台股趨勢儀表板<small id="ver"></small></h1>
   <button class="hbtn" id="curveBtn">曲線圖</button>
-  <button class="hbtn" id="logBtn">訊號紀錄</button>
+  <button class="hbtn" id="tradeBtn">交易明細</button>
   <button class="hbtn" id="helpBtn">說明</button>
   <i class="dot" id="dot" title="準備中"></i>
 </header>
@@ -120,7 +133,7 @@ td:first-child,th:first-child{text-align:left}
   <div class="today" id="today" hidden></div>
   <!-- v1.6.0 使用者要求：正 2 移到上面、加權移到下面；外資台指期那格刪除 -->
   <section class="chart">
-    <div class="ph"><span class="pxb" id="px1"></span><b>00631L 正 2</b><span class="pf" id="pf1"></span><span class="st" id="sh1"></span></div>
+    <div class="ph"><span class="pxb" id="px1"></span><span class="chg" id="ch1"></span><b>00631L 正 2</b><span class="st" id="sh1"></span></div>
     <div class="cw" id="cw2">
       <canvas id="cv2"></canvas><canvas class="ov" id="ov2"></canvas>
       <div class="tip" id="tip2"></div>
@@ -128,7 +141,7 @@ td:first-child,th:first-child{text-align:left}
     </div>
   </section>
   <section class="chart">
-    <div class="ph"><span class="pxb" id="px2"></span><b>加權指數</b><span class="pf" id="pf2"></span><span class="st" id="sh2"></span></div>
+    <div class="ph"><span class="pxb" id="px2"></span><span class="chg" id="ch2"></span><b>加權指數</b><span class="st" id="sh2"></span></div>
     <div class="cw" id="cw">
       <canvas id="cv"></canvas><canvas class="ov" id="ov"></canvas>
       <div class="tip" id="tip" style="left:5px"></div>
@@ -137,7 +150,7 @@ td:first-child,th:first-child{text-align:left}
   </section>
   <!-- v1.7.0：台積電、聯發科日線，K 棒依自身 Range Filter 15/4 的多空上色（不畫濾網線與進出點；只當看盤參考，回測個股自身濾網全輸抱著） -->
   <section class="chart">
-    <div class="ph"><span class="pxb" id="px3"></span><b>2330 台積電</b><span class="pf" id="pf3"></span><span class="st" id="sh3"></span></div>
+    <div class="ph"><span class="pxb" id="px3"></span><span class="chg" id="ch3"></span><b>2330 台積電</b><span class="st" id="sh3"></span></div>
     <div class="cw" id="cw3">
       <canvas id="cv3"></canvas><canvas class="ov" id="ov3"></canvas>
       <div class="tip" id="tip3" style="left:5px"></div>
@@ -145,7 +158,7 @@ td:first-child,th:first-child{text-align:left}
     </div>
   </section>
   <section class="chart">
-    <div class="ph"><span class="pxb" id="px4"></span><b>2454 聯發科</b><span class="pf" id="pf4"></span><span class="st" id="sh4"></span></div>
+    <div class="ph"><span class="pxb" id="px4"></span><span class="chg" id="ch4"></span><b>2454 聯發科</b><span class="st" id="sh4"></span></div>
     <div class="cw" id="cw4">
       <canvas id="cv4"></canvas><canvas class="ov" id="ov4"></canvas>
       <div class="tip" id="tip4" style="left:5px"></div>
@@ -165,11 +178,11 @@ td:first-child,th:first-child{text-align:left}
   </div>
 </div>
 
-<div class="sheet" id="logSheet" hidden>
+<!-- v1.8.0：訊號紀錄改成交易明細（使用者 2026-10-13 要求跟指數趨勢儀表板一樣），開著會自動更新 -->
+<div class="sheet" id="tradeSheet" hidden>
   <div class="in">
-    <div class="top">訊號紀錄（依載入的資料重算）<button class="hbtn" data-close>關閉</button></div>
-    <div style="font-size:11px;margin-bottom:6px">每次都是收盤價成交・正 2 用證交所收盤價・報酬已處理 2026/03 的 1 拆 22 分割・未扣手續費與證交稅</div>
-    <div id="logBody">尚未計算</div>
+    <div class="top">交易明細<button class="hbtn" data-close>關閉</button></div>
+    <div id="tradeBody"></div>
   </div>
 </div>
 
@@ -191,8 +204,9 @@ td:first-child,th:first-child{text-align:left}
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
       <li><b>資料來源</b>：圖表直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交。盤中正 2、台積電、聯發科的即時價，證交所不開放網頁直接讀，透過自己的 Cloudflare 轉接站代抓；轉接站連不上時，正 2 改用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>，個股只顯示最近收盤。12 年績效另用 FinMind。</li>
-      <li><b>畫面（v1.7.1）</b>：四格依序是正 2、加權指數、台積電、聯發科。商品名稱前的方塊是價格（盤中即時，持有紅底、空手綠底）。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考）。右上角「持有／空手 MM/DD 起」是目前狀態，看收盤確定的那根。</li>
-      <li><b>12年績效</b>：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。只做多贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
+      <li><b>畫面（v1.7.1）</b>：四格依序是正 2、加權指數、台積電、聯發科。商品名稱前的方塊是價格（盤中即時，持有紅底、空手綠底），後面是跟前一個交易日收盤比的漲跌（漲紅跌綠）。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考）。右上角「持有／空手 MM/DD 起」是目前狀態，看收盤確定的那根。</li>
+      <li><b>交易明細</b>：底稿是每次開工跑紀錄程式寫的正式進出紀錄（2026/01/02 起算），之後的進出由網頁照收盤訊號接著算（標◆，下次開工以正式紀錄為準）；盤中試算的翻轉不算交易。報酬是正 2 收盤價相除（已處理 1 拆 22 分割），已實現與合計都是複利，未扣手續費與證交稅。</li>
+      <li><b>12年績效</b>（在交易明細最下面）：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。只做多贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
       <li><b>盤中翻轉警告</b>：盤中照目前指數試算，若收盤會翻轉，畫面中央跳出警告（同一天同方向按「知道了」後不重跳）。只有網頁開著才會跳，沒有聲音。</li>
       <li><b>注意</b>：2000～2014 年正 2 還沒上市，是用指數模擬的；正 2 每天重設兩倍，盤整時會有耗損。</li>
     </ul>
@@ -201,7 +215,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.7.4";
+const VERSION = "v1.8.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -359,6 +373,7 @@ async function loadStats(){
   // 個股：自己的日期序列、自己的訊號
   SS.forEach((S, k) => { if(S.length > 200){ const r = calcRF(S, P); stat("sh" + (k+3), r.pos, S, at(S, r.warm), S.length - 1); } });
   for(const id in HEADS) posHead(id, ...HEADS[id]);
+  renderTrades();
 }
 function posHead(id, pos, L, D){
   HEADS[id] = [pos, L, D];
@@ -371,13 +386,19 @@ function posHead(id, pos, L, D){
       px.textContent = fmt(D[q].c, id === "sh2" ? 2 : D[q].c >= 1000 ? 0 : 2);
       px.className = "pxb " + (h ? "long" : "flat");
       px.title = D[q].live ? (D[q].est ? "盤中估算" : "盤中即時") : `${md(D[q].d)} 收盤`;
+      // v1.8.0 使用者要求：價格後面放漲跌（跟前一個有資料的交易日收盤比，漲紅跌綠）
+      let pq = q - 1; while(pq >= 0 && !D[pq]) pq--;
+      const ch = $(id.replace("sh", "ch"));
+      if(pq >= 0){
+        const dv = D[q].c - D[pq].c, dp = dv / D[pq].c * 100, dec = id === "sh2" ? 2 : D[q].c >= 1000 ? 0 : 2;
+        const sg = (v, d) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v), d);
+        ch.textContent = sg(dv, dec);   // 使用者要求漲跌幅 % 刪除，只留漲跌
+        ch.className = "chg " + (dv > 0 ? "up" : dv < 0 ? "dn" : "");
+        ch.title = `比 ${md(D[pq].d)} 收盤 ${fmt(D[pq].c, dec)}（${sg(dp, 2)}%）`;
+      }else ch.textContent = "";
     }
   }
   let a = L; while(a > 0 && pos[a-1] === pos[L]) a--;
-  const st = STATS[id];
-  const pc = v => (v >= 0 ? "+" : "") + Math.round(v * 100).toLocaleString("zh-TW") + "%", pf = $(id.replace("sh", "pf"));
-  pf.title = st ? `${st.from.replace(/-/g,"/")}～${st.to.replace(/-/g,"/")}，只做多、收盤成交、未扣成本、未含配息` : "";
-  pf.innerHTML = st ? `${yrs(st.from, st.to)}年 只做多 <b class="pv" style="color:${st.s >= st.b ? "#ff3b3b" : "var(--text)"}">${pc(st.s)}</b>・抱著 <b class="pv">${pc(st.b)}</b>` : "";
   $(id).innerHTML = `<span style="color:${h ? "#ff3b3b" : "#2ecc71"};font-weight:700">${h ? "持有" : "空手"}</span>` +
     (a > R.warm ? ` <span style="color:var(--warn)">${md(BARS[a].d)} 起</span>` : "");
 }
@@ -386,7 +407,6 @@ function stkHead(k){
   let L = D.length - 1; while(L >= 0 && (!D[L] || D[L].live)) L--;   // 狀態看收盤確定的那根，盤中即時 K 只給價格
   posHead("sh" + (k+3), r.pos, L, D);
 }
-async function etfClose(ymd){ return (await etfMonth(ymd))[ymd]?.c ?? null; }
 /* v1.2.0：正 2 日 K，跟 BARS 逐根對齊（停牌日是 null）。
    分割前的價格換算成分割後的單位：分割那天的實際比值 ÷ 指數同期 ×2 的理論比值＝分割倍數，之前全部乘上去。
    盤中那根用「昨收 ×（1＋2×指數相對昨收的漲跌）」估算開高低收。 */
@@ -423,26 +443,6 @@ async function etfBars(){
       EB[L] = {d:BARS[L].d, o:g(BARS[L].o), h:g(BARS[L].h), l:g(BARS[L].l), c:g(BARS[L].c), live:true, est:true}; }
   }
   return EB;
-}
-/* v1.0.3：正 2 在 2026/03/24→03/31 做過約 1 拆 22，收盤價直接相除會錯。
-   從 a 到 b 逐日串收盤價，單日變動超過一倍（真實行情一天最多約 ±20%）就當成分割，
-   那一段改用「加權指數同期漲跌 ×2」接起來。回傳 a 收盤到 b 收盤的報酬。 */
-async function etfRet(a, b){
-  const days = {}, d = new Date(a.slice(0,7) + "-01T00:00:00Z"), end = b.slice(0,7);
-  while(d.toISOString().slice(0,7) <= end){ Object.assign(days, await etfMonth(d.toISOString().slice(0,10))); d.setUTCMonth(d.getUTCMonth() + 1); }
-  const ks = Object.keys(days).filter(k => k >= a && k <= b).sort();
-  if(!ks.length || ks[0] !== a || ks[ks.length-1] !== b) return null;
-  const idx = {}; for(const x of BARS) idx[x.d] = x.c;
-  let g = 1;
-  for(let i = 1; i < ks.length; i++){
-    const r = days[ks[i]].c / days[ks[i-1]].c;
-    if(r > .5 && r < 2) g *= r;
-    else{   // v1.3.1：分割，扣掉同期指數漲跌×2 後取整數倍數再乘回
-      const e = idx[ks[i]] && idx[ks[i-1]] ? r / (1 + 2 * (idx[ks[i]] / idx[ks[i-1]] - 1)) : r;
-      g *= r * (e < 1 ? Math.round(1 / e) : 1 / Math.round(e));
-    }
-  }
-  return g - 1;
 }
 async function etfPrevClose(ymd){   // ymd 之前最近一個交易日的收盤
   let m = await etfMonth(ymd), ks = Object.keys(m).filter(d => d < ymd).sort();
@@ -560,32 +560,112 @@ async function compute(){
     try{ SB[k] = await stkBars(STK[k].code); SR[k] = stkRF(SB[k]); stkHead(k); $("wait" + (k+3)).hidden = true; drawOne(CH[2+k]); }
     catch(e){ $("wait" + (k+3)).textContent = STK[k].name + " 載入失敗：" + (e.message || e); }
   }
+  // v1.8.0：交易明細開著時跟著重算（盤中每 10 秒）；正式紀錄每 5 分鐘重讀一次
+  if(!$("tradeSheet").hidden){ renderTrades(); if(Date.now() - logAt > 300000) loadLog(); }
 }
 
-async function buildLog(){
-  const body = $("logBody");
-  if(!R){ body.textContent = "尚未計算"; return; }
-  body.textContent = "讀取正 2 收盤價…";
-  const last = BARS.length - 1, live = !!BARS[last].live, ci = live ? last - 1 : last;
-  const rows = []; let ent = R.pos[R.warm] === 1 ? R.warm : null;   // 暖機結束時已持有，從那天記起
-  for(let i = R.warm + 1; i <= ci; i++){
-    const p = R.pos[i], pp = R.pos[i-1];
-    if(p === 1 && pp !== 1) ent = i;
-    if(p !== 1 && pp === 1 && ent != null){ rows.push([ent, i]); ent = null; }
+/* ============ v1.8.0 交易明細（取代訊號紀錄；使用者 2026-10-13 要求跟指數趨勢儀表板的交易明細一樣） ============
+   底稿是 實際紀錄/進出紀錄.csv（開工時 更新紀錄.py 寫的正式紀錄）。最後一列之後，用這頁算出的部位接著補（標「◆」），
+   只看收盤確定的 K，盤中試算的翻轉不算交易。報酬照 更新紀錄.py：正 2 分割換算後的收盤價相除（EB 已換算），
+   已實現與合計都是複利；持有中的現價盤中用即時價。 */
+let LOGROWS = null, logAt = 0, logErr = "", logBusy = false, tradeSig = "";
+function parseCSV(txt){
+  const L = txt.replace(/^﻿/, "").split(/\r?\n/).filter(x => x.trim()), head = (L.shift() || "").split(",");
+  return L.map(x => { const v = x.split(","); return Object.fromEntries(head.map((h, i) => [h, v[i] || ""])); });
+}
+async function loadLog(){
+  if(logBusy) return; logBusy = true;
+  try{
+    const r = await fetch("實際紀錄/進出紀錄.csv?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    LOGROWS = parseCSV(await r.text()).map(x => ({d:x["日期"], act:x["動作"], hold:x["部位"] === "持有正2",
+      ix:+x["加權指數"], p:x["正2收盤"] ? +x["正2收盤"] : null})).filter(x => x.d).sort((a, b) => a.d < b.d ? -1 : 1);
+    logAt = Date.now(); logErr = "";
+  }catch(e){ logErr = "讀不到進出紀錄：" + (e.message || e); }
+  logBusy = false; tradeSig = ""; renderTrades();
+}
+function tradesOf(){
+  const last = BARS.length - 1, ci = BARS[last].live ? last - 1 : last, at = {};
+  BARS.forEach((b, i) => at[b.d] = i);
+  const rows = LOGROWS.map(r => Object.assign({}, r));
+  let cur = rows[rows.length-1].hold, s = BARS.findIndex(b => b.d > rows[rows.length-1].d), gap = false;
+  if(s < 0 || s > ci) s = ci + 1;
+  if(s <= R.warm){ gap = true; s = R.warm + 1; }   // 正式紀錄之後的缺口比網頁抓到的資料還長，中間可能漏
+  for(let i = s; i <= ci; i++){
+    const h = R.pos[i] === 1;
+    if(h === cur) continue;
+    rows.push({d:BARS[i].d, act:h ? "買進" : "賣出", hold:h, ix:BARS[i].c, p:EB && EB[i] ? EB[i].c : null, live:true,
+      fix: i === s && (R.pos[i-1] === 1) === h});   // 網頁算出前一天就已經是這個部位 → 正式紀錄跟網頁不一致，記校正
+    cur = h;
   }
-  if(ent != null) rows.push([ent, null]);
-  const html = [];
-  for(const [a, b] of rows.reverse()){
-    const ea = await etfClose(BARS[a].d), eb = b != null ? await etfClose(BARS[b].d) : null;
-    const r = b != null ? await etfRet(BARS[a].d, BARS[b].d) : null;
-    html.push(`<tr><td>${md(BARS[a].d)}${a === R.warm && R.pos[a-1] === 1 ? "＊" : ""}</td><td>${fmt(BARS[a].c,0)}</td><td>${fmt(ea)}</td>` +
-      (b != null ? `<td>${md(BARS[b].d)}</td><td>${fmt(eb)}</td><td class="${r >= 0 ? "up" : "dn"}">${pct(r)}</td>`
-                 : `<td colspan="3" style="text-align:center">持有中</td>`) + `</tr>`);
+  // 報酬：用分割換算後的正 2 收盤相除（跟 更新紀錄.py 的 chain 相同）
+  const px = d => EB && at[d] != null && EB[at[d]] ? EB[at[d]].c : null;
+  const ret = (a, b) => { const x = px(a), y = px(b); return x && y ? y / x - 1 : null; };
+  let q = EB ? EB.length - 1 : -1; while(q >= 0 && !EB[q]) q--;
+  const trades = []; let ent = null, acc = 1, win = 0;
+  for(const r of rows){
+    if(r.hold && !ent) ent = r;
+    else if(!r.hold && ent){
+      const g = ret(ent.d, r.d); if(g != null){ acc *= 1 + g; win += g > 0; }
+      trades.push({a:ent, b:r, g, cum:acc - 1, live:!!(ent.live || r.live)}); ent = null;
+    }
   }
-  body.innerHTML = rows.length
-    ? `<table><tr><th>買進</th><th>指數</th><th>正 2</th><th>賣出</th><th>正 2</th><th>報酬</th></tr>${html.join("")}</table>
-       <div style="font-size:11px;margin-top:6px">只列出載入的 ${MONTHS} 個月內（扣掉前 ${R.warm} 根暖機）的訊號；標＊的是暖機結束時已經持有，以那天收盤起算。</div>`
-    : "載入的期間內沒有進出。";
+  let op = null;
+  if(ent){
+    op = {a:ent, live:!!ent.live};
+    if(q >= 0){ const x = px(ent.d); if(x) Object.assign(op, {now:EB[q].c, raw:EB[q].c, at:EB[q], g:EB[q].c / x - 1}); }
+  }
+  const tot = acc * (1 + (op && op.g != null ? op.g : 0)) - 1;
+  const bh = q >= 0 && px(rows[0].d) ? EB[q].c / px(rows[0].d) - 1 : null;   // 同期正 2 抱著
+  return {trades, op, acc:acc - 1, win, tot, bh, start:rows[0].d, gap, upTo:q >= 0 ? EB[q] : null};
+}
+const sgnP = (v, d = 2) => v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(d) + "%";
+const udC = v => v > 0 ? "up" : v < 0 ? "dn" : "";
+function renderTrades(){
+  if($("tradeSheet").hidden) return;
+  let html;
+  if(!LOGROWS) html = `<div class="tnote">${logErr || "讀取進出紀錄中…"}</div>`;
+  else if(!LOGROWS.length) html = `<div class="tnote">還沒有正式紀錄（開工跑一次紀錄後才有）</div>`;
+  else if(!R || !EB) html = `<div class="tnote">圖表還在載入…</div>`;
+  else{
+    const T = tradesOf(), o = T.op, n = T.trades.length;
+    const ep = r => `${r.p != null ? fmt(r.p) : "—"}・<small>指數</small> ${fmt(r.ix, 0)}`;
+    const hold = !o ? "目前空手"
+      : `持有中：${md(o.a.d)} @${o.a.p != null ? fmt(o.a.p) : "—"}` +
+        (o.g != null ? `，現價 ${fmt(o.now)}${o.at.live ? (o.at.est ? "（盤中估算）" : "（盤中）") : ""}，浮動 <span class="${udC(o.g)}">${sgnP(o.g)}</span>` : "，現價載入中");
+    const st = STATS.sh1, pc = v => (v >= 0 ? "+" : "") + Math.round(v * 100).toLocaleString("zh-TW") + "%";
+    html = `<div class="tsum">
+      <div class="tot ${udC(T.tot)}">合計 ${sgnP(T.tot)}</div>
+      <div>已平倉 ${n} 筆（賺 ${T.win}／賠 ${n - T.win}），已實現 <span class="${udC(T.acc)}">${sgnP(T.acc)}</span></div>
+      <div>${hold}</div>
+      <div>同期正 2 抱著 ${sgnP(T.bh)}（${md(T.start)} 起）</div>
+      <div>${st ? `${yrs(st.from, st.to)}年 只做多 <b style="color:${st.s >= st.b ? "var(--long)" : "var(--text)"}">${pc(st.s)}</b>・抱著 <b>${pc(st.b)}</b>` : "12 年績效載入中…"}</div></div>
+      <div class="tnote">未扣手續費與證交稅・資料到 ${T.upTo ? md(T.upTo.d) + (T.upTo.live ? " 盤中" : " 收盤") : "—"}・開著會自動更新・◆＝正式紀錄之後網頁算的，下次開工以正式紀錄為準・＊＝起算時已有的部位</div>` +
+      (T.gap ? `<div class="tnote warn">正式紀錄最後一筆之後隔太久，網頁只能從 ${md(BARS[R.warm + 1].d)} 接著算，中間可能漏掉交易；開工跑一次紀錄就會補齊。</div>` : "");
+    const star = r => r.act.startsWith("起算") ? "＊" : "";
+    const rowsH = T.trades.map((x, i) => ({x, i: i + 1})).reverse().map(({x, i}) => `<tr class="${x.live ? "live" : ""}">
+      <td>${x.live ? "◆" : ""}${i}</td>
+      <td>${md(x.a.d)}${star(x.a)}<br><small>${ep(x.a)}</small></td>
+      <td>${md(x.b.d)}${x.b.fix ? " 校正" : ""}<br><small>${ep(x.b)}</small></td>
+      <td class="${udC(x.g)}">${sgnP(x.g)}</td><td class="${udC(x.cum)}">${sgnP(x.cum)}</td></tr>`).join("");
+    const holdH = o ? `<tr class="hold${o.live ? " live" : ""}"><td>${o.live ? "◆" : ""}持有</td>
+      <td>${md(o.a.d)}${star(o.a)}<br><small>${ep(o.a)}</small></td>
+      <td>現價<br><small>${o.g != null ? fmt(o.now) + "・<small>指數</small> " + fmt(BARS[BARS.length-1].c, 0) : "—"}</small></td>
+      <td class="${udC(o.g)}">${sgnP(o.g)}</td><td class="${udC(T.tot)}">${sgnP(T.tot)}</td></tr>` : "";
+    html += `<table class="tt"><thead><tr><th>#</th><th>進場（正 2・指數）</th><th>出場</th><th>報酬</th><th>累計</th></tr></thead>
+      <tbody>${holdH}${rowsH}</tbody></table>`;
+    // 12 年績效（v1.8.0 從各格標題移過來）
+    const S4 = [["sh1", "00631L 正 2"], ["sh2", "加權指數"], ["sh3", "2330 台積電"], ["sh4", "2454 聯發科"]].filter(([k]) => STATS[k]);
+    if(S4.length){
+      const s0 = STATS[S4[0][0]];
+      html += `<h3>${yrs(s0.from, s0.to)} 年績效</h3>
+        <div class="tnote">${s0.from.replace(/-/g,"/")}～${s0.to.replace(/-/g,"/")}・照各格訊號只做多（空手拿現金、複利）vs 那天買進不賣・收盤成交、未扣成本、未含配息・只做多贏時紅字</div>
+        <table class="tt"><thead><tr><th style="text-align:left">商品</th><th style="text-align:right">只做多</th><th style="text-align:right">抱著</th></tr></thead><tbody>` +
+        S4.map(([k, nm]) => `<tr><td style="text-align:left">${nm}</td><td style="text-align:right;color:${STATS[k].s >= STATS[k].b ? "var(--long)" : "var(--text)"}">${pc(STATS[k].s)}</td><td style="text-align:right">${pc(STATS[k].b)}</td></tr>`).join("") +
+        `</tbody></table>`;
+    }
+  }
+  if(html !== tradeSig){ tradeSig = html; $("tradeBody").innerHTML = html; }
 }
 
 /* ============ 圖 ============ */
@@ -732,7 +812,7 @@ CH.forEach(({cv}, k) => {
 window.addEventListener("resize", () => draw());
 
 // 彈出面板
-$("logBtn").onclick = () => { $("logSheet").hidden = false; buildLog(); };
+$("tradeBtn").onclick = () => { $("tradeSheet").hidden = false; tradeSig = ""; renderTrades(); if(Date.now() - logAt > 300000) loadLog(); };
 $("curveBtn").onclick = () => { $("curveImg").src = "實際紀錄/績效曲線.png?t=" + Date.now(); $("curveSheet").hidden = false; };
 $("flipOk").onclick = () => { FLIPOK = $("flipAlert").dataset.key; $("flipAlert").hidden = true; };
 $("helpBtn").onclick = () => { $("helpSheet").hidden = false; };
