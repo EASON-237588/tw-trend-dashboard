@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.8.0</title>
+<title>台股趨勢儀表板 v1.8.1</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -215,7 +215,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.8.0";
+const VERSION = "v1.8.1";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -311,8 +311,11 @@ async function loadQuote(){
   return r.json();
 }
 function qBar(q, d){   // 報價 → 今日 K；日期不是今天（例如盤前還是昨天的報價）就不用
-  if(!q || !q.z || q.d !== d.replace(/-/g, "")) return null;
-  return {d, o:q.o ?? q.z, h:Math.max(q.h ?? q.z, q.z), l:Math.min(q.l ?? q.z, q.z), c:q.z, live:true};
+  if(!q || q.d !== d.replace(/-/g, "")) return null;
+  // v1.8.1：盤中快照的成交價常是「-」（10/14 開盤時實測正 2、台積電都是），改用最佳買賣價的中間值
+  const z = q.z || (q.b && q.a ? (q.b + q.a) / 2 : q.b || q.a);
+  if(!z) return null;
+  return {d, o:q.o ?? z, h:Math.max(q.h ?? z, z), l:Math.min(q.l ?? z, z), c:z, live:true};
 }
 let SB = [null, null], SR = [null, null];
 /* 個股自身的 Range Filter：跳過停牌日（null）壓成連續陣列算，再放回 BARS 的位置；停牌日沿用前一天部位 */
@@ -453,7 +456,13 @@ async function etfPrevClose(ymd){   // ymd 之前最近一個交易日的收盤
 async function loadToday(ymd){
   const j = await twse(`/TAIEX/MI_5MINS_INDEX?response=json&date=${ymd.replace(/-/g,"")}`, null);
   const v = (j.data || []).map(r => [r[0], num(r[1])]).filter(r => r[1] > 0);
-  if(!v.length) return null;
+  if(!v.length){
+    // v1.8.1：這支盤中常回「沒有符合條件的資料」（10/14 開盤後實測），改向轉接站要即時加權指數（t00）
+    const r = await fetch(QUOTE_URL + "t00", {cache:"no-store"}).catch(() => null);
+    const q = r && r.ok ? (await r.json())["t00"] : null;
+    if(!q || !q.z || q.d !== ymd.replace(/-/g, "")) return null;
+    return {d:ymd, o:q.o ?? q.z, h:Math.max(q.h ?? q.z, q.z), l:Math.min(q.l ?? q.z, q.z), c:q.z, at:q.t || "", live:true};
+  }
   const xs = v.map(r => r[1]);
   return {d:ymd, o:xs[0], h:Math.max(...xs), l:Math.min(...xs), c:xs[xs.length-1], at:v[v.length-1][0], live:true};
 }
