@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>台股趨勢儀表板 v1.8.1</title>
+<title>台股趨勢儀表板 v1.9.0</title>
 <meta name="description" content="加權指數日線 Range Filter 15/4 決定持有台灣 50 正 2 或空手">
 <meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -165,6 +165,15 @@ td:first-child,th:first-child{text-align:left}
       <div class="wait" id="wait4">載入聯發科…</div>
     </div>
   </section>
+  <!-- v1.9.0 使用者要求：第五格 元大台灣高股息優質龍頭基金 B 類型（月配息）。一般基金一天一個淨值，畫成線；顏色依自身 Range Filter 15/4 -->
+  <section class="chart">
+    <div class="ph"><span class="pxb" id="px5"></span><span class="chg" id="ch5"></span><b title="元大台灣高股息優質龍頭基金－新台幣 B 類型（月配息）">高股息龍頭 B</b><span class="st" id="sh5"></span></div>
+    <div class="cw" id="cw5">
+      <canvas id="cv5"></canvas><canvas class="ov" id="ov5"></canvas>
+      <div class="tip" id="tip5" style="left:5px"></div>
+      <div class="wait" id="wait5">載入高股息龍頭淨值…</div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -203,8 +212,9 @@ td:first-child,th:first-child{text-align:left}
       <li><b>什麼時候動作</b>：訊號以收盤價為準。盤中顯示的「今日暫定」會隨指數變動，<b>13:25 前後</b>看一次，跟收盤集合競價一起成交。</li>
       <li><b>回測（加權指數模擬正 2，2000～2026）</b>：平均每年約 23%（周圍參數平均約 19%，實際比較可能接近這個數字）；0050 抱著約 10%。中途最慘曾從高點少掉約 5 成。29 年約買賣 124 次。</li>
       <li><b>分段</b>：2000～08 每年 +18%（0050 −4%）；2009～17 +16%（+13%）；2018～26 +38%（+23%）。</li>
-      <li><b>資料來源</b>：圖表直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交。盤中正 2、台積電、聯發科的即時價，證交所不開放網頁直接讀，透過自己的 Cloudflare 轉接站代抓；轉接站連不上時，正 2 改用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>，個股只顯示最近收盤。12 年績效另用 FinMind。</li>
+      <li><b>資料來源</b>：圖表直接讀證交所——指數日線、盤中每 5 秒指數、正 2 與個股日成交。盤中正 2、台積電、聯發科的即時價，證交所不開放網頁直接讀，透過自己的 Cloudflare 轉接站代抓；轉接站連不上時，正 2 改用「昨收 ×（1＋2×指數今日漲跌）」<b>估算</b>，個股只顯示最近收盤。第五格基金的每日淨值也透過轉接站代抓 Yahoo 股市。12 年績效另用 FinMind。</li>
       <li><b>畫面（v1.7.1）</b>：四格依序是正 2、加權指數、台積電、聯發科。商品名稱前的方塊是價格（盤中即時，持有紅底、空手綠底），後面是跟前一個交易日收盤比的漲跌（漲紅跌綠）。K 棒與背景都依多空上色：紅＝持有、綠＝空手；正 2 與加權看加權指數的訊號，台積電、聯發科各用自己股價跑同一套 Range Filter（只當看盤參考）。右上角「持有／空手 MM/DD 起」是目前狀態，看收盤確定的那根。</li>
+      <li><b>第五格（v1.9.0）</b>：元大台灣高股息優質龍頭基金－新台幣 B 類型（月配息）。這是一般基金，不在證交所買賣，一天只有一個淨值（晚上公布），所以畫成線、盤中不會動；價格方塊是最近一天的淨值，漲跌跟前一天淨值比。線的紅綠依它自己的淨值跑同一套 Range Filter（只當看盤參考）。淨值是沒有把配息加回去的原始值；沒有 12 年績效（資料只有 2021 年起）。</li>
       <li><b>交易明細</b>：底稿是每次開工跑紀錄程式寫的正式進出紀錄（2026/01/02 起算），之後的進出由網頁照收盤訊號接著算（標◆，下次開工以正式紀錄為準）；盤中試算的翻轉不算交易。報酬是正 2 收盤價相除（已處理 1 拆 22 分割），已實現與合計都是複利，未扣手續費與證交稅。</li>
       <li><b>12年績效</b>（在交易明細最下面）：四格統一從 2014/10/31（正 2 上市）算到最新收盤。「只做多」＝照訊號持有時跟著漲跌、空手時拿現金，複利滾下來（含還沒賣的那筆）；「抱著」＝那天買進後完全不賣。只做多贏過抱著時顯示紅字。都用收盤價、未扣成本、未含配息（抱著實際上還會多領股息）。這 12 年是大多頭，策略多半輸抱著；策略的好處主要在 2000、2008 這類大空頭。資料來自 FinMind（存在瀏覽器裡，之後只補新的）。</li>
       <li><b>盤中翻轉警告</b>：盤中照目前指數試算，若收盤會翻轉，畫面中央跳出警告（同一天同方向按「知道了」後不重跳）。只有網頁開著才會跳，沒有聲音。</li>
@@ -215,7 +225,7 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-const VERSION = "v1.8.1";
+const VERSION = "v1.9.0";
 const P = {per:15, mult:4, useAtr:true, atrLen:12, atrMult:1.5, useVol:false};   // 回測用的同一組
 const MONTHS = 18;          // 指數日線抓幾個月：暖機 6×15＝90 根（約 4 個半月）＋訊號紀錄約一年
 const ETF = "00631L";
@@ -318,6 +328,21 @@ function qBar(q, d){   // 報價 → 今日 K；日期不是今天（例如盤�
   return {d, o:q.o ?? z, h:Math.max(q.h ?? z, z), l:Math.min(q.l ?? z, z), c:z, live:true};
 }
 let SB = [null, null], SR = [null, null];
+/* v1.9.0：第五格 元大台灣高股息優質龍頭基金－新台幣 B 類型（月配息）。不在證交所交易，沒有開高低收也沒有盤中價；
+   每日淨值（晚上公布）由轉接站代抓 Yahoo 股市，30 分鐘重抓一次。淨值是原始值（沒有把配息加回去），月配金額小，
+   濾網用原始淨值算。開高低都等於淨值，所以 calcRF 的 (高+低)/2 就是淨值本身。 */
+const FUND = {id:"F000014SAY", name:"高股息龍頭 B"};
+let FNAV = null, fundAt = 0, FB = null, FR = null;
+async function loadFund(){
+  const r = await fetch(QUOTE_URL.replace("?s=", "?fund=") + FUND.id, {cache:"no-store"});
+  if(!r.ok) throw new Error(`轉接站 HTTP ${r.status}`);
+  const j = await r.json(), m = {};
+  j.d.forEach((d, i) => { if(j.c[i] > 0) m[d] = j.c[i]; });
+  FNAV = m; fundAt = Date.now();
+}
+function fundBars(){   // 跟 BARS 逐根對齊；盤中那根沒有淨值
+  return BARS.map(b => FNAV[b.d] ? {d:b.d, o:FNAV[b.d], h:FNAV[b.d], l:FNAV[b.d], c:FNAV[b.d], nav:true} : null);
+}
 /* 個股自身的 Range Filter：跳過停牌日（null）壓成連續陣列算，再放回 BARS 的位置；停牌日沿用前一天部位 */
 function stkRF(D){
   const ix = [], B = [];
@@ -388,7 +413,7 @@ function posHead(id, pos, L, D){
     if(q >= 0){
       px.textContent = fmt(D[q].c, id === "sh2" ? 2 : D[q].c >= 1000 ? 0 : 2);
       px.className = "pxb " + (h ? "long" : "flat");
-      px.title = D[q].live ? (D[q].est ? "盤中估算" : "盤中即時") : `${md(D[q].d)} 收盤`;
+      px.title = D[q].live ? (D[q].est ? "盤中估算" : "盤中即時") : `${md(D[q].d)} ${D[q].nav ? "淨值" : "收盤"}`;
       // v1.8.0 使用者要求：價格後面放漲跌（跟前一個有資料的交易日收盤比，漲紅跌綠）
       let pq = q - 1; while(pq >= 0 && !D[pq]) pq--;
       const ch = $(id.replace("sh", "ch"));
@@ -569,6 +594,13 @@ async function compute(){
     try{ SB[k] = await stkBars(STK[k].code); SR[k] = stkRF(SB[k]); stkHead(k); $("wait" + (k+3)).hidden = true; drawOne(CH[2+k]); }
     catch(e){ $("wait" + (k+3)).textContent = STK[k].name + " 載入失敗：" + (e.message || e); }
   }
+  // v1.9.0：第五格基金淨值（30 分鐘重抓一次，抓不到就沿用上一次）
+  try{
+    if(!FNAV || Date.now() - fundAt > 1800000) await loadFund().catch(e => { if(!FNAV) throw e; });
+    FB = fundBars(); FR = stkRF(FB);
+    let L = FB.length - 1; while(L >= 0 && !FB[L]) L--;
+    posHead("sh5", FR.pos, L, FB); $("wait5").hidden = true; drawOne(CH[4]);
+  }catch(e){ $("wait5").textContent = FUND.name + " 淨值載入失敗：" + (e.message || e); }
   // v1.8.0：交易明細開著時跟著重算（盤中每 10 秒）；正式紀錄每 5 分鐘重讀一次
   if(!$("tradeSheet").hidden){ renderTrades(); if(Date.now() - logAt > 300000) loadLog(); }
 }
@@ -686,6 +718,7 @@ const CH = [
   {cv:$("cv2"), ov:$("ov2"), box:"cw2", tip:"tip2", S:() => EB,   filt:false, dec:2},
   {cv:$("cv3"), ov:$("ov3"), box:"cw3", tip:"tip3", S:() => SB[0], filt:false, dec:1, stk:true, rf:() => SR[0]},
   {cv:$("cv4"), ov:$("ov4"), box:"cw4", tip:"tip4", S:() => SB[1], filt:false, dec:1, stk:true, rf:() => SR[1]},
+  {cv:$("cv5"), ov:$("ov5"), box:"cw5", tip:"tip5", S:() => FB,    filt:false, dec:2, line:true, rf:() => FR},
 ];
 CH.forEach(c => c.ctx = c.cv.getContext("2d"));
 let VIEW = null;
@@ -730,7 +763,19 @@ function drawOne(C){
   }
   // K 棒：v1.0.2 使用者要求改灰色（v1.0.1 是淺灰，漲跌同色），讓濾網線與進出記號比較顯眼
   // v1.6.0：正 2 的 K 棒改依多空上色（持有紅、空手綠）；v1.7.0 每格都依多空上色，不畫濾網線與進出點
-  for(let i = s; i < e; i++){
+  // v1.9.0：基金一天只有一個淨值，畫成線；每段依終點那天的部位上色，停牌（沒有淨值）的日子直接連過去
+  if(C.line){
+    ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+    let p = -1;
+    for(let i = s; i < e; i++){
+      if(!D[i]) continue;
+      if(p >= 0){ ctx.strokeStyle = Q.pos[i] === 1 ? "#ff3b3b" : "#2ecc71";
+        ctx.beginPath(); ctx.moveTo(X(p), Y(D[p].c)); ctx.lineTo(X(i), Y(D[i].c)); ctx.stroke(); }
+      p = i;
+    }
+    ctx.lineWidth = 1;
+  }
+  else for(let i = s; i < e; i++){
     const b = D[i]; if(!b) continue;
     const x = X(i), col = Q.pos[i] === 1 ? "#ff3b3b" : "#2ecc71";
     ctx.strokeStyle = col; ctx.fillStyle = col;
@@ -795,7 +840,7 @@ function tipAt(px){
     const D = C.S(), b = ok && D ? D[i] : null;
     if(!b){ $(C.tip).textContent = ""; continue; }
     // v1.7.2 使用者要求：只留日期與收盤
-    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (b.est ? " 盤中估算" : " 盤中") : ""}  收 ${fmt(b.c, C.stk && b.c >= 1000 ? 0 : C.dec)}`;   // 千元以上個股一跳 5 元，不顯示小數
+    $(C.tip).textContent = `${b.d.replace(/-/g,"/")}${b.live ? (b.est ? " 盤中估算" : " 盤中") : ""}  ${b.nav ? "淨值" : "收"} ${fmt(b.c, C.stk && b.c >= 1000 ? 0 : C.dec)}`;   // 千元以上個股一跳 5 元，不顯示小數
   }
 }
 const clearTip = e => { if(drag || e.pointerType !== "mouse") return;   // 手機放開後十字線留著，滑鼠移出才清

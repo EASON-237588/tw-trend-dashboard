@@ -17,11 +17,35 @@ function cors(origin){
   };
 }
 
+/* v1.9.0：基金每日淨值（第五格 元大台灣高股息優質龍頭 B 類型）。Yahoo 股市的淨值歷史不開放跨網域，代抓。
+   GET /?fund=F000014SAY → {d:[日期…], c:[淨值…], _at}；淨值一天一個（晚上公布），暫存 30 分鐘。
+   c 是原始淨值（沒有把配息加回去）。 */
+const FUND_SEC = 1800;
+async function fundNav(id, origin, ctx){
+  const json = (o, status = 200) => new Response(JSON.stringify(o), {status, headers: {...cors(origin), "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"}});
+  if(!/^F[0-9A-Z]{9}$/.test(id)) return json({error: "fund 參數要是 Yahoo 基金代碼（F 開頭 10 碼）"}, 400);
+  const key = new Request("https://cache.local/fund?id=" + id), cache = caches.default;
+  let body = await cache.match(key).then(r => r && r.text());
+  if(!body){
+    const r = await fetch(`https://tw.stock.yahoo.com/_td-stock/api/resource/FundServices.fundsPriceHistory;fundId=${id}%3AFO;timeRange=5y`, {
+      headers: {"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+    });
+    if(!r.ok) return json({error: `Yahoo HTTP ${r.status}`}, 502);
+    const j = await r.json();
+    if(!Array.isArray(j.dates) || !j.dates.length) return json({error: "Yahoo 沒有回傳淨值"}, 502);
+    body = JSON.stringify({d: j.dates, c: j.closePrices.map(x => num(x)), _at: Date.now()});
+    ctx.waitUntil(cache.put(key, new Response(body, {headers: {"Cache-Control": `max-age=${FUND_SEC}`}})));
+  }
+  return new Response(body, {headers: {...cors(origin), "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"}});
+}
+
 export default {
   async fetch(req, env, ctx){
     const origin = req.headers.get("Origin") || "";
     if(req.method === "OPTIONS") return new Response(null, {headers: cors(origin)});
     const url = new URL(req.url);
+    const fund = url.searchParams.get("fund");
+    if(fund != null) return fundNav(fund, origin, ctx);
     const codes = (url.searchParams.get("s") || "").split(",").map(x => x.trim()).filter(Boolean);
     if(!codes.length || codes.length > 10 || !codes.every(c => /^[0-9A-Za-z]{2,6}$/.test(c)))
       return new Response(JSON.stringify({error: "s 參數要是 1～10 個股票代號，逗號分隔"}), {status: 400, headers: {...cors(origin), "Content-Type": "application/json; charset=utf-8"}});
